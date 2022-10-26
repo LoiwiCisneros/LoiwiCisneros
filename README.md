@@ -1,0 +1,5 @@
+- 👋 Hi, I’m @LoiwiCisneros
+- 👀 I’m interested in automation on Structural Designing
+- 🌱 I’m currently learning Python and Tensorflow
+- 💞️ I’m looking to collaborate on AI Projects
+- 📫 How to reach me loiwi.cisnerosm@pucp.edu.pe
