@@ -5,7 +5,7 @@ import math
 from fractions import Fraction
 import numpy as np
 import time
-# import AssistantBot
+import AssistantBot
 
 
 def aDouble(xyz):
@@ -70,6 +70,13 @@ class Point:
         x0, y0, z0 = P0.x, P0.y, P0.z
         return Point(x0 * alpha + x * (1 - alpha), y0 * alpha + y * (1 - alpha), z0 * alpha + z * (1 - alpha))
 
+    def is_collinear(self, L0):
+        L1 = Line(L0.P0, self)
+        if L0.is_same(L1):
+            return True
+        else:
+            return False
+
 
 class Line:
     def __init__(self, P0: Point, P1: Point):
@@ -109,6 +116,34 @@ class Line:
 
     def mid_point(self):
         return self.P0.interpolate2point(self.P1, 0.5)
+
+    def is_parallel(self, L0):
+        A, B, C = self.A, self.B, self.C
+        A0, B0, C0 = L0.A, L0.B, L0.C
+        if A0 != 0 and B0 != 0:
+            if A / A0 == B / B0:
+                return True
+            else:
+                return False
+        else:
+            if (A == 0 and A0 == 0) or (B == 0 and B0 == 0):
+                return True
+            else:
+                return False
+
+    def is_same(self, L0):
+        A, B, C = self.A, self.B, self.C
+        A0, B0, C0 = L0.A, L0.B, L0.C
+        if A0 != 0 and B0 != 0 and C0 != 0:
+            if A / A0 == B / B0 and B / B0 == C / C0:
+                return True
+            else:
+                return False
+        else:
+            if (A == 1 and A0 == 1 and C == C0) or (B == 1 and B0 == 1 and C == C0):
+                return True
+            else:
+                return False
 
 
 def get_dev_length(D, tie_case):
@@ -540,8 +575,25 @@ if __name__ == '__main__':
             draftsman.draw_line(p0, p1)
             pm = P0.interpolate2point(P1, 0.5)
             mid_points.append(pm)
-        for i in range(len(mid_points)-1):
-            draftsman.draw_line(mid_points[i], mid_points[i+1], 'A-ACERO')
+        n = len(mid_points)
+        index_list = list(range(0, n))
+        lines = []
+        for i in range(2, len(index_list)):
+            is_axis = False
+            P0 = mid_points[index_list[i-2]]
+            P1 = mid_points[index_list[i-1]]
+            L0 = Line(P0, P1)
+            for j in range(2, len(index_list)):
+                P2 = mid_points[index_list[j]]
+                if P2.is_collinear(L0):
+                    index_list.pop(j)
+                    is_axis = True
+            if is_axis:
+                index_list.pop(0)
+                index_list.pop(1)
+                lines.append(L0)
+        for line in lines:
+            draftsman.draw_line(line.P0, line.P1, 'A-ACERO')
 
     # draftsman.select_all()
     # draftsman.move([0, 0, 0], [0, 5, 0])
