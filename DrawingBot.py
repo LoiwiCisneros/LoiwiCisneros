@@ -6,14 +6,15 @@ from fractions import Fraction
 import numpy as np
 import time
 import AssistantBot
+from operator import itemgetter
 
 
 def aDouble(xyz):
-    return win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, (xyz))
+    return win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, xyz)
 
 
 def aDispatch(vObject):
-    return win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_DISPATCH, (vObject))
+    return win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_DISPATCH, vObject)
 
 
 class Point:
@@ -302,7 +303,8 @@ class CAD:
                         stirrups_number = math.ceil((length_over - 2 * stirrup_data[1]) / stirrups_spacing)
                     start_point = ap[i] + beam_restraints[i] * 0.5 + round(
                         last_position + stirrup_data[1] + 0.5 * aux, 4)
-                self.draw_line([start_point, -0.06, 0], [start_point, - beam_geometry[1][i] + 0.06, 0], 'A-ESTRIBOS')
+                self.draw_line(Point(start_point, -0.06, 0), Point(start_point, - beam_geometry[1][i] + 0.06, 0),
+                               'A-ESTRIBOS')
                 self.select_last(1)
                 self.array(1, stirrups_number, 0, stirrups_spacing)
 
@@ -372,7 +374,9 @@ class CAD:
         self.draw_line(P2b, P1p)
         self.draw_line(P1p, P1)
 
-    def draw_beam_longitudinal_bar(self, ip, bar_data, bar_restrictions=[0, 0], tie_case=-1):
+    def draw_beam_longitudinal_bar(self, ip, bar_data, bar_restrictions=None, tie_case=-1):
+        if bar_restrictions is None:
+            bar_restrictions = [0, 0]
         bar_case = bar_data[0]
         N = bar_data[1]
         D = bar_data[2]
@@ -383,8 +387,8 @@ class CAD:
         left_con = bar_data[7]
         right_con = bar_data[8]
         edge_offset = 0.06 + 0.04 * order
-        self.draw_line([ip[0] + left_cut, -ip[1] + (ip[1] - edge_offset) * side, 0],
-                       [ip[0] + right_cut, -ip[1] + (ip[1] - edge_offset) * side, 0], 'A-ACERO')
+        self.draw_line(Point(ip[0] + left_cut, -ip[1] + (ip[1] - edge_offset) * side),
+                       Point(ip[0] + right_cut, -ip[1] + (ip[1] - edge_offset) * side), 'A-ACERO')
         # if left_con == 0:
         #     tie_case = determine_tie_case(bar_case, bar_restrictions[0], side)
         #     ld = get_dev_length(D, tie_case)
@@ -394,13 +398,14 @@ class CAD:
         #     tie_case = determine_tie_case(bar_case, bar_restrictions[1], side)
         #     ld = get_dev_length(D, tie_case)
         #     ld = min(ld, bar_restrictions[1]-0.06-0.04*order)
-        #     self.draw_tie_long_bar([ip[0] + right_cut, -ip[1] + (ip[1] - edge_offset) * side, 0], ld, tie_case, side, 1)
+        #     self.draw_tie_long_bar([ip[0] + right_cut, -ip[1] + (ip[1] - edge_offset) * side, 0], ld, tie_case, side,
+        #                            1)
 
     def draw_tie_long_bar(self, P0, ld, case=0, side=1, draw_to=-1, tie_long=0):
-        P1 = [P0[0] + ld * draw_to, P0[1], 0]
+        P1 = Point(P0.x + ld * draw_to, P0.y)
         self.draw_line(P0, P1, 'A-ACERO')
         if case == 1:
-            P2 = [P1[0], P1[1] - tie_long * side, 0]
+            P2 = Point(P1.x, P1.y - tie_long * side)
             self.draw_line(P1, P2, 'A-ACERO')
 
     def select_last(self, num_objects, selection_offset=0):
@@ -499,32 +504,49 @@ def is_point_in_triangle(vp, va, vb, vc, counter=1):
     return True
 
 
-def get_polygon_area(vertices):
+def get_polygon_area(vertices_list):
     area = 0
-    for i in range(len(vertices)):
-        va = vertices[i]
-        vb = vertices[(i + 1) % len(vertices)]
+    for i in range(len(vertices_list)):
+        va = vertices_list[i]
+        vb = vertices_list[(i + 1) % len(vertices_list)]
         width = vb[0] - va[0]
         height = (vb[1] + va[1]) / 2
         area += width * height
     return area
 
 
-def triangulate_polygon(vertices):
-    if vertices is None:
+def reduce_vertices(vertices_list):
+    if np.array_equal(vertices_list[0], vertices_list[-1]):
+        vertices_list.pop(-1)
+    n = len(vertices_list)
+    index_list = list(range(0,n))
+    delete_list = []
+    for i in range(0, n):
+        P0 = Point(vertices_list[i])
+        P1 = Point(vertices_list[i - 1])
+        P2 = Point(vertices_list[(i + 1) % n])
+        if P0.is_collinear(Line(P1, P2)):
+            delete_list.append(i)
+    res_list = sorted(list(set(index_list)-set(delete_list)))
+    reduced_vertices_list = list(itemgetter(*res_list)(vertices_list))
+    return reduced_vertices_list
+
+
+def triangulate_polygon(vertices_list):
+    if vertices_list is None:
         return False
-    if not isinstance(vertices, np.ndarray):
-        vertices = np.array(vertices)
-    vertices = np.split(vertices, vertices.size / 2)
-    if len(vertices) < 3 or len(vertices) > 1024:
+    if not isinstance(vertices_list, np.ndarray):
+        vertices_list = np.array(vertices_list)
+    n = int(vertices_list.size / 2)
+    vertices_list = np.split(vertices_list, n)
+    if len(vertices_list) < 3 or len(vertices_list) > 1024:
         raise Exception("Number of vertices exceed limits!")
-    if np.array_equal(vertices[0], vertices[-1]):
-        vertices.pop(-1)
-    if get_polygon_area(vertices) > 0:
+    if np.array_equal(vertices_list[0], vertices_list[-1]):
+        vertices_list.pop(-1)
+    if get_polygon_area(vertices_list) > 0:
         counter = 1
     else:
         counter = -1
-    n = len(vertices)
     index_list = list(range(0, n))
     diagonals = []
     while len(index_list) > 3:
@@ -532,68 +554,126 @@ def triangulate_polygon(vertices):
             a = index_list[i]
             b = index_list[i - 1]
             c = index_list[(i + 1) % n]
-            va = vertices[a]
-            vb = vertices[b]
-            vc = vertices[c]
+            va = vertices_list[a]
+            vb = vertices_list[b]
+            vc = vertices_list[c]
             vab = np.subtract(vb, va)
             vac = np.subtract(vc, va)
             if np.cross(vab, vac) * counter < 0:
                 continue
             is_ear = True
-            for j in range(0, len(vertices)):
+            for j in range(0, len(vertices_list)):
                 if j == a or j == b or j == c:
                     continue
-                vp = vertices[j]
+                vp = vertices_list[j]
                 if is_point_in_triangle(vp, vb, va, vc, counter):
                     is_ear = False
                     break
             if is_ear:
-                diagonals.append([vertices[b], vertices[c]])
+                diagonals.append([vertices_list[b], vertices_list[c]])
                 index_list.pop(i)
                 break
     return diagonals
+
+
+def get_wall_axes(vertices_list):
+    if vertices_list is None:
+        return False
+    if not isinstance(vertices_list, np.ndarray):
+        vertices_list = np.array(vertices_list)
+    n = int(vertices_list.size / 2)
+    vertices_list = np.split(vertices_list, n)
+    if len(vertices_list) < 3 or len(vertices_list) > 1024:
+        raise Exception("Number of vertices exceed limits!")
+    if np.array_equal(vertices_list[0], vertices_list[-1]):
+        vertices_list.pop(-1)
+    if get_polygon_area(vertices_list) > 0:
+        counter = 1
+    else:
+        counter = -1
+    n = len(vertices_list)
+    index_list = list(range(0, n))
+    diagonals = []
+    while len(index_list) > 3:
+        for i in range(0, n):
+            a = index_list[i]
+            b = index_list[i - 1]
+            c = index_list[(i + 1) % n]
+            va = vertices_list[a]
+            vb = vertices_list[b]
+            vc = vertices_list[c]
+            vab = np.subtract(vb, va)
+            vac = np.subtract(vc, va)
+            if np.cross(vab, vac) * counter < 0:
+                continue
+            is_ear = True
+            for j in range(0, len(vertices_list)):
+                if j == a or j == b or j == c:
+                    continue
+                vp = vertices_list[j]
+                if is_point_in_triangle(vp, vb, va, vc, counter):
+                    is_ear = False
+                    break
+            if is_ear:
+                diagonals.append([b, a, c])
+                index_list.pop(i)
+                break
+    axes = []
+    adjacent = []
+    for i in range(len(diagonals)):
+        a_set = set(diagonals[i])
+        for j in range(len(diagonals)):
+            if i == j or [i, j] in adjacent:
+                continue
+            b_set = set(diagonals[j])
+            if len(a_set.intersection(b_set)) == 2:
+                axes.append([diagonals[i], diagonals[j]])
+                adjacent.append([j, i])
+    return axes
 
 
 if __name__ == '__main__':
     draftsman = CAD('Drawing1.dwg')
     draftsman.selection_set.Clear()
     draftsman.selection_set.SelectOnScreen()
-    for i in range(draftsman.selection_set.Count):
-        obj = draftsman.selection_set.Item(i)
-        coord = obj.Coordinates
-        print(coord)
-        for j in range(0, len(coord), 2):
-            print("X= " + str(round(coord[0 + j], 2)) + " Y= " + str(round(coord[1 + j], 2)))
-        tri_coord = triangulate_polygon(coord)
-        print(tri_coord)
-        mid_points = []
-        for triangle in tri_coord:
-            p0 = triangle[0]
-            p1 = triangle[1]
-            P0 = Point(p0[0], p0[1])
-            P1 = Point(p1[0], p1[1])
-            draftsman.draw_line(p0, p1)
-            pm = P0.interpolate2point(P1, 0.5)
-            mid_points.append(pm)
-        n = len(mid_points)
-        index_list = list(range(0, n))
-        lines = []
-        for i in range(2, len(index_list)):
-            is_axis = False
-            P0 = mid_points[index_list[i-2]]
-            P1 = mid_points[index_list[i-1]]
-            L0 = Line(P0, P1)
-            for j in range(2, len(index_list)):
-                P2 = mid_points[index_list[j]]
-                if P2.is_collinear(L0):
-                    index_list.pop(j)
-                    is_axis = True
-            if is_axis:
-                index_list.pop(0)
-                index_list.pop(1)
-                lines.append(L0)
-        for line in lines:
-            draftsman.draw_line(line.P0, line.P1, 'A-ACERO')
+    for number in range(draftsman.selection_set.Count):
+        item = draftsman.selection_set.Item(number)
+        coord = item.Coordinates
+        # tri_coord = get_wall_axes(coord)
+        # print(tri_coord)
+        vertices = np.array(coord)
+        total_vertex = int(vertices.size / 2)
+        vertices = np.split(vertices, total_vertex)
+        print(reduce_vertices(vertices))
+
+        # mid_points = []
+        # for triangle in tri_coord:
+        #     p0 = triangle[0]
+        #     p1 = triangle[1]
+        #     P0 = Point(p0[0], p0[1])
+        #     P1 = Point(p1[0], p1[1])
+        #     draftsman.draw_line(p0, p1)
+        #     pm = P0.interpolate2point(P1, 0.5)
+        #     mid_points.append(pm)
+        # n = len(mid_points)
+        # index_list = list(range(0, n))
+        # lines = []
+        # for i in range(2, len(index_list)):
+        #     is_axis = False
+        #     P0 = mid_points[index_list[i-2]]
+        #     P1 = mid_points[index_list[i-1]]
+        #     L0 = Line(P0, P1)
+        #     for j in range(2, len(index_list)):
+        #         P2 = mid_points[index_list[j]]
+        #         if P2.is_collinear(L0):
+        #             index_list.pop(j)
+        #             is_axis = True
+        #     if is_axis:
+        #         index_list.pop(0)
+        #         index_list.pop(1)
+        #         lines.append(L0)
+        # for line in lines:
+        #     draftsman.draw_line(line.P0, line.P1, 'A-ACERO')
 
     # draftsman.select_all()
     # draftsman.move([0, 0, 0], [0, 5, 0])
