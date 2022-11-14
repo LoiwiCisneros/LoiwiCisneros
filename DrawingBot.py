@@ -519,7 +519,7 @@ def reduce_vertices(vertices_list):
     if np.array_equal(vertices_list[0], vertices_list[-1]):
         vertices_list.pop(-1)
     n = len(vertices_list)
-    index_list = list(range(0,n))
+    index_list = list(range(0, n))
     delete_list = []
     for i in range(0, n):
         P0 = Point(vertices_list[i])
@@ -532,23 +532,28 @@ def reduce_vertices(vertices_list):
     return reduced_vertices_list
 
 
-def triangulate_polygon(vertices_list):
+def get_coordinates(iterable, dimension=2):
+    if not isinstance(iterable, np.ndarray):
+        iterable = np.array(iterable)
+    n = int(iterable.size / dimension)
+    return np.split(iterable, n)
+
+
+def triangulate_polygon(vertices_list, get_index=False):
     if vertices_list is None:
         return False
-    if not isinstance(vertices_list, np.ndarray):
-        vertices_list = np.array(vertices_list)
-    n = int(vertices_list.size / 2)
-    vertices_list = np.split(vertices_list, n)
-    if len(vertices_list) < 3 or len(vertices_list) > 1024:
+    vertices_list = get_coordinates(vertices_list)
+    vertices_list = reduce_vertices(vertices_list)
+    n = len(vertices_list)
+    if n < 3 or n > 1024:
         raise Exception("Number of vertices exceed limits!")
-    if np.array_equal(vertices_list[0], vertices_list[-1]):
-        vertices_list.pop(-1)
     if get_polygon_area(vertices_list) > 0:
         counter = 1
     else:
         counter = -1
     index_list = list(range(0, n))
-    diagonals = []
+    triangles = []
+    triangles_index = []
     while len(index_list) > 3:
         for i in range(0, n):
             a = index_list[i]
@@ -570,64 +575,28 @@ def triangulate_polygon(vertices_list):
                     is_ear = False
                     break
             if is_ear:
-                diagonals.append([vertices_list[b], vertices_list[c]])
+                triangles.append([vertices_list[b], vertices_list[a], vertices_list[c]])
+                triangles_index.append([b, a, c])
                 index_list.pop(i)
                 break
-    return diagonals
+    if get_index:
+        return triangles_index
+    else:
+        return triangles
 
 
 def get_wall_axes(vertices_list):
-    if vertices_list is None:
-        return False
-    if not isinstance(vertices_list, np.ndarray):
-        vertices_list = np.array(vertices_list)
-    n = int(vertices_list.size / 2)
-    vertices_list = np.split(vertices_list, n)
-    if len(vertices_list) < 3 or len(vertices_list) > 1024:
-        raise Exception("Number of vertices exceed limits!")
-    if np.array_equal(vertices_list[0], vertices_list[-1]):
-        vertices_list.pop(-1)
-    if get_polygon_area(vertices_list) > 0:
-        counter = 1
-    else:
-        counter = -1
-    n = len(vertices_list)
-    index_list = list(range(0, n))
-    diagonals = []
-    while len(index_list) > 3:
-        for i in range(0, n):
-            a = index_list[i]
-            b = index_list[i - 1]
-            c = index_list[(i + 1) % n]
-            va = vertices_list[a]
-            vb = vertices_list[b]
-            vc = vertices_list[c]
-            vab = np.subtract(vb, va)
-            vac = np.subtract(vc, va)
-            if np.cross(vab, vac) * counter < 0:
-                continue
-            is_ear = True
-            for j in range(0, len(vertices_list)):
-                if j == a or j == b or j == c:
-                    continue
-                vp = vertices_list[j]
-                if is_point_in_triangle(vp, vb, va, vc, counter):
-                    is_ear = False
-                    break
-            if is_ear:
-                diagonals.append([b, a, c])
-                index_list.pop(i)
-                break
+    triangles = triangulate_polygon(vertices_list)
     axes = []
     adjacent = []
-    for i in range(len(diagonals)):
-        a_set = set(diagonals[i])
-        for j in range(len(diagonals)):
+    for i in range(len(triangles)):
+        a_set = set(triangles[i])
+        for j in range(len(triangles)):
             if i == j or [i, j] in adjacent:
                 continue
-            b_set = set(diagonals[j])
+            b_set = set(triangles[j])
             if len(a_set.intersection(b_set)) == 2:
-                axes.append([diagonals[i], diagonals[j]])
+                axes.append([triangles[i], triangles[j]])
                 adjacent.append([j, i])
     return axes
 
@@ -644,7 +613,7 @@ if __name__ == '__main__':
         vertices = np.array(coord)
         total_vertex = int(vertices.size / 2)
         vertices = np.split(vertices, total_vertex)
-        print(reduce_vertices(vertices))
+        print(triangulate_polygon(vertices))
 
         # mid_points = []
         # for triangle in tri_coord:
