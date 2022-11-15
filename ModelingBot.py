@@ -205,10 +205,11 @@ class SAP:
         modifiers = [A, V2, V3, T, M2, M3, Mm, Wm]
         return self.sapModel.PropFrame.SetModifiers(name, modifiers)
 
-    def define_load_pattern(self, name, tType, SW_multiplier=0, addCase=True):
+    def define_load_pattern(self, name, MyType, SW_multiplier=0, addCase=True):
+        MyType = convert_load_pattern_type(MyType)
         if MyType is None:
             return
-        return self.sapModel.LoadPatterns.Add(name, eType, SW_multiplier, addCase)
+        return self.sapModel.LoadPatterns.Add(name, MyType, SW_multiplier, addCase)
 
     def draw_frame(self, iCoord, fCoord, propName="Default", userName="", CSys="Global"):
         frameName = " "
