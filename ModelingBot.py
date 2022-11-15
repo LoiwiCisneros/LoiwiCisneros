@@ -7,16 +7,16 @@ import comtypes.client
 
 
 def clockwise_angle_and_distance(point, origin, ref_vec=[1, 0]):
-    vector = [point[0]-origin[0], point[1]-origin[1]]
+    vector = [point[0] - origin[0], point[1] - origin[1]]
     len_vector = math.hypot(vector[0], vector[1])
     if len_vector == 0:
         return -math.pi, 0
-    normalized = [vector[0]/len_vector, vector[1]/len_vector]
-    dot_prod = normalized[0]*ref_vec[0] + normalized[1]*ref_vec[1]
-    diff_prod = ref_vec[1]*normalized[0] - ref_vec[0]*normalized[1]
+    normalized = [vector[0] / len_vector, vector[1] / len_vector]
+    dot_prod = normalized[0] * ref_vec[0] + normalized[1] * ref_vec[1]
+    diff_prod = ref_vec[1] * normalized[0] - ref_vec[0] * normalized[1]
     angle = math.atan2(diff_prod, dot_prod)
     if angle < 0:
-        return 2*math.pi+angle, len_vector
+        return 2 * math.pi + angle, len_vector
     return angle, len_vector
 
 
@@ -30,7 +30,7 @@ class SAP:
     def __init__(self):
         self.AttachToInstance = True
         self.SpecifyPath = True
-        self.ProgramPath = "C:\Program Files\Computers and Structures\ETABS 19"
+        self.ProgramPath = "C:\Program Files\Computers and Structures\ETABS 20"
         self.APIPath = "D:\PROYECTOS\PROGRAMACION\CSIBotModels"
         if not os.path.exists(self.APIPath):
             try:
@@ -175,7 +175,7 @@ class SAP:
             return
         return self.sapModel.LoadPatterns.Add(name, eType, SW_multiplier, addCase)
 
-    def draw_frame(self, iCoord, fCoord, propName="Default", userName="LCM", CSys="Global"):
+    def draw_frame(self, iCoord, fCoord, propName="Default", userName="", CSys="Global"):
         frameName = " "
         return self.sapModel.FrameObj.AddByCoord(iCoord[0], iCoord[1], iCoord[2], fCoord[0], fCoord[1], fCoord[2]
                                                  , frameName, propName, userName, CSys)
@@ -184,6 +184,29 @@ class SAP:
         pointName1 = " "
         pointName2 = " "
         return self.sapModel.FrameObj.GetPoints(frameName, pointName1, pointName2)
+
+    def get_releases(self, frameName):
+        II = []
+        JJ = []
+        StartValue = []
+        EndValue = []
+        return self.sapModel.FrameObj.GetReleases(frameName, II, JJ, StartValue, EndValue)
+
+    def get_loads_distributed(self, frameName, itemType=0):
+        NumberItems = 0
+        FrameNames = []
+        LoadPat = []
+        MyType = []
+        CSys = []
+        Dir = []
+        RD1 = []
+        RD2 = []
+        Dist1 = []
+        Dist2 = []
+        Val1 = []
+        Val2 = []
+        return self.sapModel.FrameObj.GetLoadDistributed(frameName, NumberItems, FrameNames, LoadPat, MyType, CSys, Dir,
+                                                         RD1, RD2, Dist1, Dist2, Val1, Val2)
 
     def assign_restraints(self, pointName, U1=False, U2=False, U3=False, R1=False, R2=False, R3=False, itemType=0):
         restraints = [U1, U2, U3, R1, R2, R3]
@@ -228,7 +251,7 @@ class SAP:
         return self.sapModel.FrameObj.SetLoadDistributed(frameName, patternName, eType, eDir, dist1, dist2, val1, val2,
                                                          CSys, relDist, replace, itemType)
 
-    def draw_area(self, coordList, propName="Default", userName="LCM", CSys="Global"):
+    def draw_area(self, coordList, propName="Default", userName="", CSys="Global"):
         numPoints = len(coordList)
         XList = []
         YList = []
@@ -240,7 +263,7 @@ class SAP:
         areaName = " "
         return self.sapModel.AreaObj.AddByCoord(numPoints, XList, YList, ZList, areaName, propName, userName, CSys)
 
-    def draw_area_by_point(self, pointNamesList, propName="Deafault", userName="LCM"):
+    def draw_area_by_point(self, pointNamesList, propName="Default", userName=""):
         numPoints = len(pointNamesList)
         areaName = " "
         return self.sapModel.AreaObj.AddByPoint(numPoints, pointNamesList, areaName, propName, userName)
@@ -250,6 +273,14 @@ class SAP:
 
 
 if __name__ == "__main__":
-    pts = [[2,3], [5,2],[4,1],[3.5,1],[1,2],[2,1],[3,1],[3,3],[4,3]]
-    sort = sorted(pts, key=clockwise_angle_and_distance)
-    print(sort)
+    etabs = SAP()
+    # etabs.initialize(6)
+    # etabs.new_model(1)
+    print(etabs.get_releases("1"))
+    print(etabs.get_loads_distributed("1"))
+    # print(etabs.draw_frame([2, 2, 0], [3, 5, 0]))
+    # print(etabs.draw_frame([0, 1, 0], [2, 10, 0]))
+    # print(etabs.draw_area([[0, 0, 0], [1, 0, 0], [1, 3, 0], [0, 3, 0]]))
+    # pts = [[2,3], [5,2],[4,1],[3.5,1],[1,2],[2,1],[3,1],[3,3],[4,3]]
+    # sort = sorted(pts, key=clockwise_angle_and_distance)
+    # print(sort)
