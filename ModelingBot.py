@@ -26,6 +26,111 @@ class CAD:
         self.acadModel = self.acad.ActiveDocument.ModelSpace
 
 
+def convert_units(Units):
+    if isinstance(Units, int):
+        if 1 <= Units <= 16:
+            return Units
+        else:
+            return None
+    if Units == "lb_in_F":
+        Units = 1
+    elif Units == "lb_ft_F":
+        Units = 2
+    elif Units == "kip_in_F":
+        Units = 3
+    elif Units == "kip_ft_F":
+        Units = 4
+    elif Units == "kN_mm_C":
+        Units = 5
+    elif Units == "kN_m_C":
+        Units = 6
+    elif Units == "kgf_mm_C":
+        Units = 7
+    elif Units == "kgf_m_C":
+        Units = 8
+    elif Units == "N_mm_C":
+        Units = 9
+    elif Units == "N_m_C":
+        Units = 10
+    elif Units == "tonf_mm_C":
+        Units = 11
+    elif Units == "tonf_m_C":
+        Units = 12
+    elif Units == "kN_cm_C":
+        Units = 13
+    elif Units == "kgf_cm_C":
+        Units = 14
+    elif Units == "N_cm_C":
+        Units = 15
+    elif Units == "tonf_cm_C":
+        Units = 16
+    else:
+        Units = None
+    return Units
+
+
+def convert_material_type(MatType):
+    if isinstance(MatType, int):
+        if 1 <= MatType <= 8:
+            return MatType
+        else:
+            return None
+    if MatType == "Steel":
+        MatType = 1
+    elif MatType == "Concrete":
+        MatType = 2
+    elif MatType == "NoDesign":
+        MatType = 3
+    elif MatType == "Aluminum":
+        MatType = 4
+    elif MatType == "ColdFormed":
+        MatType = 5
+    elif MatType == "Rebar":
+        MatType = 6
+    elif MatType == "Tendon":
+        MatType = 7
+    elif MatType == "Masonry":
+        MatType = 8
+    else:
+        MatType = None
+    return MatType
+
+
+def convert_load_pattern_type(MyType):
+    if isinstance(MyType, int):
+        if 1 <= MyType <= 12:
+            return MyType
+        else:
+            return None
+    if MyType == "Dead":
+        MyType = 1
+    elif MyType == "SuperDead":
+        MyType = 2
+    elif MyType == "Live":
+        MyType = 3
+    elif MyType == "ReduceLive":
+        MyType = 4
+    elif MyType == "Quake":
+        MyType = 5
+    elif MyType == "Wind":
+        MyType = 6
+    elif MyType == "Snow":
+        MyType = 7
+    elif MyType == "Other":
+        MyType = 8
+    elif MyType == "Move":
+        MyType = 9
+    elif MyType == "Temperature":
+        MyType = 10
+    elif MyType == "RoofLive":
+        MyType = 11
+    elif MyType == "Notional":
+        MyType = 12
+    else:
+        MyType = None
+    return MyType
+
+
 class SAP:
     def __init__(self):
         self.AttachToInstance = True
@@ -82,63 +187,17 @@ class SAP:
     def run_analysis(self):
         return self.sapModel.Analyze.RunAnalysis()
 
-    def switch_units(self, tUnits="tonf_m_C"):
-        if tUnits == "lb_in_F":
-            eUnits = 1
-        elif tUnits == "lb_ft_F":
-            eUnits = 2
-        elif tUnits == "kip_in_F":
-            eUnits = 3
-        elif tUnits == "kip_ft_F":
-            eUnits = 4
-        elif tUnits == "kN_mm_C":
-            eUnits = 5
-        elif tUnits == "kN_m_C":
-            eUnits = 6
-        elif tUnits == "kgf_mm_C":
-            eUnits = 7
-        elif tUnits == "kgf_m_C":
-            eUnits = 8
-        elif tUnits == "N_mm_C":
-            eUnits = 9
-        elif tUnits == "N_m_C":
-            eUnits = 10
-        elif tUnits == "tonf_mm_C":
-            eUnits = 11
-        elif tUnits == "tonf_m_C":
-            eUnits = 12
-        elif tUnits == "kN_cm_C":
-            eUnits = 13
-        elif tUnits == "kgf_cm_C":
-            eUnits = 14
-        elif tUnits == "N_cm_C":
-            eUnits = 15
-        elif tUnits == "tonf_cm_C":
-            eUnits = 16
-        else:
+    def switch_units(self, Units="tonf_m_C"):
+        Units = convert_units(Units)
+        if Units is None:
             return
-        return self.sapModel.SetPresentUnits(eUnits)
+        return self.sapModel.SetPresentUnits(Units)
 
-    def define_material(self, name, tMatType, E, U, A, Temp=0):
-        if tMatType == "STEEL":
-            eMatType = 1
-        elif tMatType == "CONCRETE":
-            eMatType = 2
-        elif tMatType == "NO_DESIGN":
-            eMatType = 3
-        elif tMatType == "ALUMINUM":
-            eMatType = 4
-        elif tMatType == "COLD_FORMED":
-            eMatType = 5
-        elif tMatType == "REBAR":
-            eMatType = 6
-        elif tMatType == "TENDON":
-            eMatType = 7
-        elif tMatType == "MASONRY":
-            eMatType = 8
-        else:
+    def define_material(self, name, MatType, E, U, A, Temp=0):
+        MatType = convert_material_type(MatType)
+        if MatType is None:
             return
-        self.sapModel.PropMaterial.SetMaterial(name, eMatType)
+        self.sapModel.PropMaterial.SetMaterial(name, MatType)
         return self.sapModel.PropMaterial.SetMPIsotropic(name, E, U, A, Temp)
 
     def define_rectangular_frame_section(self, name, matName, B, H, A=1, V2=1, V3=1, T=1, M2=1, M3=1, Mm=1, Wm=1):
@@ -147,31 +206,7 @@ class SAP:
         return self.sapModel.PropFrame.SetModifiers(name, modifiers)
 
     def define_load_pattern(self, name, tType, SW_multiplier=0, addCase=True):
-        if tType == "DEAD":
-            eType = 1
-        elif tType == "SUPER_DEAD":
-            eType = 2
-        elif tType == "LIVE":
-            eType = 3
-        elif tType == "REDUCE_LIVE":
-            eType = 4
-        elif tType == "QUAKE":
-            eType = 5
-        elif tType == "WIND":
-            eType = 6
-        elif tType == "SNOW":
-            eType = 7
-        elif tType == "OTHER":
-            eType = 8
-        elif tType == "MOVE":
-            eType = 9
-        elif tType == "TEMPERATURE":
-            eType = 10
-        elif tType == "ROOF_LIVE":
-            eType = 11
-        elif tType == "NOTIONAL":
-            eType = 12
-        else:
+        if MyType is None:
             return
         return self.sapModel.LoadPatterns.Add(name, eType, SW_multiplier, addCase)
 
