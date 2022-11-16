@@ -131,6 +131,50 @@ def convert_load_pattern_type(MyType):
     return MyType
 
 
+def convert_direction(Dir):
+    if isinstance(Dir, int):
+        if 1 <= Dir <= 11:
+            return Dir
+        else:
+            return None
+    if Dir == "Local 1":
+        Dir = 1
+    elif Dir == "Local 2":
+        Dir = 2
+    elif Dir == "Local 3":
+        Dir = 3
+    elif Dir == "X":
+        Dir = 4
+    elif Dir == "Y":
+        Dir = 5
+    elif Dir == "Z":
+        Dir = 6
+    elif Dir == "Projected X":
+        Dir = 7
+    elif Dir == "Projected Y":
+        Dir = 8
+    elif Dir == "Projected Z":
+        Dir = 9
+    elif Dir == "Gravity":
+        Dir = 10
+    elif Dir == "Projected Gravity":
+        Dir = 11
+    else:
+        Dir = None
+    return Dir
+
+
+def validate_coordinate_system(Dir, CSys):
+    if Dir in [1, 2, 3] and CSys == "Local":
+        return True
+    elif Dir in [4, 5, 6, 7, 8, 9] and CSys != "Local":
+        return True
+    elif Dir in [10, 11] and CSys == "Global":
+        return True
+    else:
+        return False
+
+
 class SAP:
     def __init__(self):
         self.AttachToInstance = True
@@ -147,145 +191,114 @@ class SAP:
         self.helper = self.helper.QueryInterface(comtypes.gen.ETABSv1.cHelper)
         if self.AttachToInstance:
             try:
-                self.etabs = self.helper.GetObject("CSI.ETABS.API.ETABSObject")
+                self.Etabs = self.helper.GetObject("CSI.ETABS.API.ETABSObject")
             except (OSError, comtypes.COMError):
                 print("No running instance of the program found or failed to attach.")
                 sys.exit(-1)
         else:
             if self.SpecifyPath:
                 try:
-                    self.etabs = self.helper.CreateObject(self.ProgramPath)
+                    self.Etabs = self.helper.CreateObject(self.ProgramPath)
                 except (OSError, comtypes.COMError):
                     print("Cannot start a new instance of the program from " + self.ProgramPath)
                     sys.exit(-1)
             else:
                 try:
-                    self.etabs = self.helper.CreateObjectProgID("CSI.ETABS.API.ETABSObject")
+                    self.Etabs = self.helper.CreateObjectProgID("CSI.ETABS.API.ETABSObject")
                 except (OSError, comtypes.COMError):
                     print("Cannot start a new instance of the program.")
                     sys.exit(-1)
-            self.etabs.ApplicationStart()
-        self.sapModel = self.etabs.SapModel
+            self.Etabs.ApplicationStart()
+        self.SapModel = self.Etabs.SapModel
 
-    def initialize(self, cUnits=12):
-        self.sapModel.InitializeNewModel(cUnits)
+    def initialize(self, Units="tonf_m_C"):
+        Units = convert_units(Units)
+        if Units is None:
+            raise Exception("Not recognized units")
+        return self.SapModel.InitializeNewModel(Units)
 
     def new_model(self, temp, *args):
+        if args is None:
+            args = [3, 3, 3, 4, 4, 5, 5]
         if temp == 1:
-            ret = self.sapModel.File.NewBlank()
+            ret = self.SapModel.File.NewBlank()
         elif temp == 2:
-            ret = self.sapModel.File.NewGridOnly(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+            ret = self.SapModel.File.NewGridOnly(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
         elif temp == 3:
-            ret = self.sapModel.File.NewSteelDeck(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
+            ret = self.SapModel.File.NewSteelDeck(args[0], args[1], args[2], args[3], args[4], args[5], args[6])
         else:
-            ret = 1
+            raise Exception("Not available template option")
         return ret
 
     def save_model(self):
-        return self.sapModel.File.Save(self.ModelPath)
+        return self.SapModel.File.Save(self.ModelPath)
 
     def run_analysis(self):
-        return self.sapModel.Analyze.RunAnalysis()
+        return self.SapModel.Analyze.RunAnalysis()
 
     def switch_units(self, Units="tonf_m_C"):
         Units = convert_units(Units)
         if Units is None:
             return
-        return self.sapModel.SetPresentUnits(Units)
+        return self.SapModel.SetPresentUnits(Units)
 
-    def define_material(self, name, MatType, E, U, A, Temp=0):
+    def define_material(self, Name: str, MatType, E, U, A, Temp=0):
         MatType = convert_material_type(MatType)
         if MatType is None:
             return
-        self.sapModel.PropMaterial.SetMaterial(name, MatType)
-        return self.sapModel.PropMaterial.SetMPIsotropic(name, E, U, A, Temp)
+        self.SapModel.PropMaterial.SetMaterial(Name, MatType)
+        return self.SapModel.PropMaterial.SetMPIsotropic(Name, E, U, A, Temp)
 
-    def define_rectangular_frame_section(self, name, matName, B, H, A=1, V2=1, V3=1, T=1, M2=1, M3=1, Mm=1, Wm=1):
-        self.sapModel.PropFrame.SetRectangle(name, matName, B, H)
-        modifiers = [A, V2, V3, T, M2, M3, Mm, Wm]
-        return self.sapModel.PropFrame.SetModifiers(name, modifiers)
+    def define_rectangular_frame_section(self, Name: str, MatProp: str, T3: float, T2: float,
+                                         A=1, V2=1, V3=1, T=1, M2=1, M3=1, Mm=1, Wm=1):
+        self.SapModel.PropFrame.SetRectangle(Name, MatProp, T3, T2)
+        Value = [A, V2, V3, T, M2, M3, Mm, Wm]
+        return self.SapModel.PropFrame.SetModifiers(Name, Value)
 
-    def define_load_pattern(self, name, MyType, SW_multiplier=0, addCase=True):
+    def define_load_pattern(self, Name: str, MyType, SelfWTMultiplier=0, AddAnalysisCase=True):
         MyType = convert_load_pattern_type(MyType)
         if MyType is None:
             return
-        return self.sapModel.LoadPatterns.Add(name, MyType, SW_multiplier, addCase)
+        return self.SapModel.LoadPatterns.Add(Name, MyType, SelfWTMultiplier, AddAnalysisCase)
 
-    def draw_frame(self, iCoord, fCoord, propName="Default", userName="", CSys="Global"):
-        frameName = " "
-        return self.sapModel.FrameObj.AddByCoord(iCoord[0], iCoord[1], iCoord[2], fCoord[0], fCoord[1], fCoord[2]
-                                                 , frameName, propName, userName, CSys)
+    def draw_frame(self, I_coord: list, J_coord: list, PropName="Default", UserName="", CSys="Global"):
+        Name = ""
+        XI, YI, ZI = I_coord[0], I_coord[1], I_coord[2]
+        XJ, YJ, ZJ = J_coord[0], J_coord[1], J_coord[2]
+        return self.SapModel.FrameObj.AddByCoord(XI, YI, ZI, XJ, YJ, ZJ, Name, PropName, UserName, CSys)
 
     def get_points(self, frameName):
-        pointName1 = " "
-        pointName2 = " "
-        return self.sapModel.FrameObj.GetPoints(frameName, pointName1, pointName2)
+        pointName1 = ""
+        pointName2 = ""
+        return self.SapModel.FrameObj.GetPoints(frameName, pointName1, pointName2)
 
     def get_releases(self, frameName):
-        II = []
-        JJ = []
-        StartValue = []
-        EndValue = []
-        return self.sapModel.FrameObj.GetReleases(frameName, II, JJ, StartValue, EndValue)
+        II, JJ, StartValue, EndValue = [], [], [], []
+        return self.SapModel.FrameObj.GetReleases(frameName, II, JJ, StartValue, EndValue)
 
-    def get_loads_distributed(self, frameName, itemType=0):
-        NumberItems = 0
-        FrameNames = []
-        LoadPat = []
-        MyType = []
-        CSys = []
-        Dir = []
-        RD1 = []
-        RD2 = []
-        Dist1 = []
-        Dist2 = []
-        Val1 = []
-        Val2 = []
-        return self.sapModel.FrameObj.GetLoadDistributed(frameName, NumberItems, FrameNames, LoadPat, MyType, CSys, Dir,
-                                                         RD1, RD2, Dist1, Dist2, Val1, Val2)
+    def get_loads_distributed(self, Name, ItemType=0):
+        NumberItems, FrameName, LoadPat, MyType, CSys, Dir, RD1, RD2 = 0, [], [], [], [], [], [], []
+        Dist1, Dist2, Val1, Val2 = [], [], [], []
+        return self.SapModel.FrameObj.GetLoadDistributed(Name, NumberItems, FrameName, LoadPat, MyType, CSys, Dir,
+                                                         RD1, RD2, Dist1, Dist2, Val1, Val2, ItemType)
 
     def assign_restraints(self, pointName, U1=False, U2=False, U3=False, R1=False, R2=False, R3=False, itemType=0):
         restraints = [U1, U2, U3, R1, R2, R3]
-        return self.sapModel.PointObj.SetRestraint(pointName, restraints, itemType)
+        return self.SapModel.PointObj.SetRestraint(pointName, restraints, itemType)
 
     def assign_point_load(self, pointName, patternName, F1=0, F2=0, F3=0, M1=0, M2=0, M3=0, replace=False, CSys="Global"
                           , itemType=0):
         forces = [F1, F2, F3, M1, M2, M3]
-        return self.sapModel.PointObj.SetLoadForce(pointName, patternName, forces, replace, CSys, itemType)
+        return self.SapModel.PointObj.SetLoadForce(pointName, patternName, forces, replace, CSys, itemType)
 
-    def assign_frame_dist_load(self, frameName, patternName, dist1, dist2, val1, val2, tDir="Gravity", eType=1,
+    def assign_frame_dist_load(self, frameName, patternName, dist1, dist2, val1, val2, Dir="Gravity", eType=1,
                                relDist=False, replace=False, CSys="Global", itemType=0):
-        if tDir == "Local 1":
-            eDir = 1
-            CSys = "Local"
-        elif tDir == "Local 2":
-            eDir = 2
-            CSys = "Local"
-        elif tDir == "Local 3":
-            eDir = 3
-            CSys = "Local"
-        elif tDir == "X":
-            eDir = 4
-        elif tDir == "Y":
-            eDir = 5
-        elif tDir == "Z":
-            eDir = 6
-        elif tDir == "Projected X":
-            eDir = 7
-        elif tDir == "Projected Y":
-            eDir = 8
-        elif tDir == "Projected Z":
-            eDir = 9
-        elif tDir == "Gravity":
-            eDir = 10
-            CSys = "Global"
-        elif tDir == "Projected Gravity":
-            eDir = 11
-            CSys = "Global"
-        else:
+        Dir = convert_direction(Dir)
+        if Dir is None:
             return
-        return self.sapModel.FrameObj.SetLoadDistributed(frameName, patternName, eType, eDir, dist1, dist2, val1, val2,
-                                                         CSys, relDist, replace, itemType)
+        if validate_coordinate_system(Dir, CSys):
+            return self.SapModel.FrameObj.SetLoadDistributed(frameName, patternName, eType, Dir, dist1, dist2, val1,
+                                                             val2, CSys, relDist, replace, itemType)
 
     def draw_area(self, coordList, propName="Default", userName="", CSys="Global"):
         numPoints = len(coordList)
@@ -297,15 +310,15 @@ class SAP:
             YList.append(coord[1])
             ZList.append(coord[2])
         areaName = " "
-        return self.sapModel.AreaObj.AddByCoord(numPoints, XList, YList, ZList, areaName, propName, userName, CSys)
+        return self.SapModel.AreaObj.AddByCoord(numPoints, XList, YList, ZList, areaName, propName, userName, CSys)
 
     def draw_area_by_point(self, pointNamesList, propName="Default", userName=""):
         numPoints = len(pointNamesList)
         areaName = " "
-        return self.sapModel.AreaObj.AddByPoint(numPoints, pointNamesList, areaName, propName, userName)
+        return self.SapModel.AreaObj.AddByPoint(numPoints, pointNamesList, areaName, propName, userName)
 
     def refresh_view(self, num=0, zoom=True):
-        return self.sapModel.View.RefreshView(num, zoom)
+        return self.SapModel.View.RefreshView(num, zoom)
 
 
 if __name__ == "__main__":
