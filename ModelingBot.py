@@ -164,6 +164,27 @@ def convert_direction(Dir):
     return Dir
 
 
+def convert_combo(ComboType):
+    if isinstance(ComboType, int):
+        if 0 <= ComboType <= 4:
+            return ComboType
+        else:
+            return None
+    if ComboType == "Linear Additive":
+        ComboType = 0
+    elif ComboType == "Envelope":
+        ComboType = 1
+    elif ComboType == "Absolute Additive":
+        ComboType = 2
+    elif ComboType == "SRSS":
+        ComboType = 3
+    elif ComboType == "Range Additive":
+        ComboType = 4
+    else:
+        ComboType = None
+    return ComboType
+
+
 def validate_coordinate_system(Dir, CSys):
     if Dir in [1, 2, 3] and CSys == "Local":
         return True
@@ -176,11 +197,14 @@ def validate_coordinate_system(Dir, CSys):
 
 
 class SAP:
-    def __init__(self):
-        self.AttachToInstance = True
-        self.SpecifyPath = True
-        self.ProgramPath = "C:\Program Files\Computers and Structures\ETABS 20"
-        self.APIPath = "D:\PROYECTOS\PROGRAMACION\CSIBotModels"
+    def __init__(self, AttachToInstance=False, SpecifyPath=False):
+        self.load_patterns_names = []
+        self.load_cases_names = []
+        self.load_combinations_names = []
+        self.AttachToInstance = AttachToInstance
+        self.SpecifyPath = SpecifyPath
+        self.ProgramPath = "C:\\Program Files\\Computers and Structures\\ETABS 19\\ETABS.exe"
+        self.APIPath = "D:\\PROYECTOS\\PROGRAMACION\\CSIBotModels"
         if not os.path.exists(self.APIPath):
             try:
                 os.makedirs(self.APIPath)
@@ -250,86 +274,132 @@ class SAP:
         return self.SapModel.PropMaterial.SetMPIsotropic(Name, E, U, A, Temp)
 
     def define_rectangular_frame_section(self, Name: str, MatProp: str, T3: float, T2: float,
+                                         Value: list[float, float, float, float, float, float, float, float] = None,
                                          A=1, V2=1, V3=1, T=1, M2=1, M3=1, Mm=1, Wm=1):
         self.SapModel.PropFrame.SetRectangle(Name, MatProp, T3, T2)
-        Value = [A, V2, V3, T, M2, M3, Mm, Wm]
+        if Value is None:
+            Value = [A, V2, V3, T, M2, M3, Mm, Wm]
         return self.SapModel.PropFrame.SetModifiers(Name, Value)
 
     def define_load_pattern(self, Name: str, MyType, SelfWTMultiplier=0, AddAnalysisCase=True):
         MyType = convert_load_pattern_type(MyType)
         if MyType is None:
             return
+        self.load_patterns_names.append(Name)
         return self.SapModel.LoadPatterns.Add(Name, MyType, SelfWTMultiplier, AddAnalysisCase)
 
-    def draw_frame(self, I_coord: list, J_coord: list, PropName="Default", UserName="", CSys="Global"):
+    def define_load_case_linear_static(self, Name: str, LoadName: list[str], SF: list[float] = None,
+                                       InitialCase: str = "None"):
+        self.SapModel.LoadCases.StaticLinear.SetCase(Name)
+        self.load_cases_names.append(Name)
+        self.SapModel.LoadCases.StaticLinear.SetInitialCase(Name, InitialCase)
+        NumberLoads = len(LoadName)
+        LoadType = []
+        for i in range(NumberLoads):
+            if LoadName[i] in ["UX", "UY", "UZ", "RX", "RY", "RZ"]:
+                LoadType.append("Accel")
+            elif LoadName[i] in self.load_patterns_names:
+                LoadType.append("Load")
+            else:
+                raise Exception("Load Pattern({0}) not defined".format(LoadName[i]))
+        return self.SapModel.LoadCases.StaticLinear.SetLoads(Name, NumberLoads, LoadType, LoadName, SF)
+
+    def define_load_combination(self, Name: str, ComboType, loadCNames: list, loadCasesFactors: list = None):
+        ComboType = convert_load_pattern_type(ComboType)
+        if ComboType is None:
+            return
+        self.SapModel.RespCombo.Add(Name, ComboType)
+        self.load_combinations_names.append(Name)
+        for i in range(len(loadCNames)):
+            CName = loadCNames[i]
+            if CName in self.load_cases_names:
+                CNameType = 0
+            elif CName in self.load_combinations_names:
+                CNameType = 1
+            else:
+                raise Exception("CName({0}) not defined".format(CName))
+            if loadCasesFactors is None:
+                SF = 1
+            else:
+                SF = loadCasesFactors[i]
+            self.SapModel.RespCombo.SetCaseList(Name, CNameType, CName, SF)
+
+    def draw_frame(self, I_coord, J_coord, PropName="Default", UserName="", CSys="Global"):
         Name = ""
         XI, YI, ZI = I_coord[0], I_coord[1], I_coord[2]
         XJ, YJ, ZJ = J_coord[0], J_coord[1], J_coord[2]
         return self.SapModel.FrameObj.AddByCoord(XI, YI, ZI, XJ, YJ, ZJ, Name, PropName, UserName, CSys)
 
-    def get_points(self, frameName):
-        pointName1 = ""
-        pointName2 = ""
-        return self.SapModel.FrameObj.GetPoints(frameName, pointName1, pointName2)
+    def draw_frame_by_point(self, Point1: str, Point2: str, PropName="Default", UserName=""):
+        Name = ""
+        return self.SapModel.FrameObj.AddByPoint(Point1, Point2, Name, PropName, UserName)
 
-    def get_releases(self, frameName):
+    def get_points(self, Name: str):
+        Point1 = ""
+        Point2 = ""
+        return self.SapModel.FrameObj.GetPoints(Name, Point1, Point2)
+
+    def get_releases(self, Name: str):
         II, JJ, StartValue, EndValue = [], [], [], []
-        return self.SapModel.FrameObj.GetReleases(frameName, II, JJ, StartValue, EndValue)
+        return self.SapModel.FrameObj.GetReleases(Name, II, JJ, StartValue, EndValue)
 
-    def get_loads_distributed(self, Name, ItemType=0):
+    def get_loads_distributed(self, Name: str, ItemType=0):
         NumberItems, FrameName, LoadPat, MyType, CSys, Dir, RD1, RD2 = 0, [], [], [], [], [], [], []
         Dist1, Dist2, Val1, Val2 = [], [], [], []
         return self.SapModel.FrameObj.GetLoadDistributed(Name, NumberItems, FrameName, LoadPat, MyType, CSys, Dir,
                                                          RD1, RD2, Dist1, Dist2, Val1, Val2, ItemType)
 
-    def assign_restraints(self, pointName, U1=False, U2=False, U3=False, R1=False, R2=False, R3=False, itemType=0):
-        restraints = [U1, U2, U3, R1, R2, R3]
-        return self.SapModel.PointObj.SetRestraint(pointName, restraints, itemType)
+    def assign_restraints(self, Name: str, Value: list[bool, bool, bool, bool, bool, bool] = None,
+                          ItemType=0, U1=False, U2=False, U3=False, R1=False, R2=False, R3=False):
+        if Value is None:
+            Value = [U1, U2, U3, R1, R2, R3]
+        return self.SapModel.PointObj.SetRestraint(Name, Value, ItemType)
 
-    def assign_point_load(self, pointName, patternName, F1=0, F2=0, F3=0, M1=0, M2=0, M3=0, replace=False, CSys="Global"
-                          , itemType=0):
-        forces = [F1, F2, F3, M1, M2, M3]
-        return self.SapModel.PointObj.SetLoadForce(pointName, patternName, forces, replace, CSys, itemType)
+    def assign_point_load(self, Name: str, LoadPat: str, Value: list[float, float, float, float, float, float] = None,
+                          Replace=False, CSys="Global", ItemType=0, F1=0, F2=0, F3=0, M1=0, M2=0, M3=0):
+        if Value is None:
+            Value = [F1, F2, F3, M1, M2, M3]
+        return self.SapModel.PointObj.SetLoadForce(Name, LoadPat, Value, Replace, CSys, ItemType)
 
-    def assign_frame_dist_load(self, frameName, patternName, dist1, dist2, val1, val2, Dir="Gravity", eType=1,
-                               relDist=False, replace=False, CSys="Global", itemType=0):
+    def assign_frame_dist_load(self, Name: str, LoadPat: str, Dist1, Dist2, Val1, Val2, Dir="Gravity", MyType=1,
+                               RelDist=False, Replace=False, CSys="Global", ItemType=0):
         Dir = convert_direction(Dir)
         if Dir is None:
             return
         if validate_coordinate_system(Dir, CSys):
-            return self.SapModel.FrameObj.SetLoadDistributed(frameName, patternName, eType, Dir, dist1, dist2, val1,
-                                                             val2, CSys, relDist, replace, itemType)
+            return self.SapModel.FrameObj.SetLoadDistributed(Name, LoadPat, MyType, Dir, Dist1, Dist2, Val1,
+                                                             Val2, CSys, RelDist, Replace, ItemType)
 
-    def draw_area(self, coordList, propName="Default", userName="", CSys="Global"):
-        numPoints = len(coordList)
-        XList = []
-        YList = []
-        ZList = []
+    def draw_area(self, coordList, PropName="Default", UserName="", CSys="Global"):
+        NumberPoints = len(coordList)
+        X = []
+        Y = []
+        Z = []
         for coord in coordList:
-            XList.append(coord[0])
-            YList.append(coord[1])
-            ZList.append(coord[2])
-        areaName = " "
-        return self.SapModel.AreaObj.AddByCoord(numPoints, XList, YList, ZList, areaName, propName, userName, CSys)
+            X.append(coord[0])
+            Y.append(coord[1])
+            Z.append(coord[2])
+        Name = ""
+        return self.SapModel.AreaObj.AddByCoord(NumberPoints, X, Y, Z, Name, PropName, UserName, CSys)
 
-    def draw_area_by_point(self, pointNamesList, propName="Default", userName=""):
-        numPoints = len(pointNamesList)
-        areaName = " "
-        return self.SapModel.AreaObj.AddByPoint(numPoints, pointNamesList, areaName, propName, userName)
+    def draw_area_by_point(self, Point: list[str], PropName="Default", UserName=""):
+        NumberPoints = len(Point)
+        Name = ""
+        return self.SapModel.AreaObj.AddByPoint(NumberPoints, Point, Name, PropName, UserName)
 
-    def refresh_view(self, num=0, zoom=True):
-        return self.SapModel.View.RefreshView(num, zoom)
+    def refresh_view(self, Window=0, Zoom=True):
+        return self.SapModel.View.RefreshView(Window, Zoom)
 
 
 if __name__ == "__main__":
     etabs = SAP()
-    # etabs.initialize(6)
-    # etabs.new_model(1)
-    print(etabs.get_releases("1"))
-    print(etabs.get_loads_distributed("1"))
-    # print(etabs.draw_frame([2, 2, 0], [3, 5, 0]))
-    # print(etabs.draw_frame([0, 1, 0], [2, 10, 0]))
-    # print(etabs.draw_area([[0, 0, 0], [1, 0, 0], [1, 3, 0], [0, 3, 0]]))
+    etabs.initialize(6)
+    etabs.new_model(1)
+    # print(etabs.get_releases("1"))
+    # print(etabs.get_loads_distributed("1"))
+    print(etabs.draw_frame([2, 2, 0], [3, 5, 0]))
+    print(etabs.draw_frame([0, 1, 0], [2, 10, 0]))
+    print(etabs.draw_area([[0, 0, 0], [1, 0, 0], [1, 3, 0], [0, 3, 0]]))
     # pts = [[2,3], [5,2],[4,1],[3.5,1],[1,2],[2,1],[3,1],[3,3],[4,3]]
     # sort = sorted(pts, key=clockwise_angle_and_distance)
     # print(sort)
