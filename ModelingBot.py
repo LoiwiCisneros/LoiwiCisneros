@@ -22,12 +22,6 @@ def clockwise_angle_and_distance(point, origin, ref_vec=[1, 0]):
     return angle, len_vector
 
 
-class CAD:
-    def __init__(self):
-        self.acad = win32com.client.Dispatch("AutoCAD.Application")
-        self.acadModel = self.acad.ActiveDocument.ModelSpace
-
-
 def validate_coordinate_system(Dir, CSys):
     if Dir in [1, 2, 3] and CSys == "Local":
         return True
@@ -208,7 +202,7 @@ def convert_item_type(ItemType):
         ItemType = 1
     elif ItemType == "Group":
         ItemType = 2
-    elif ItemType == "SelectedObjects":
+    elif ItemType == "Selected Objects":
         ItemType = 3
     else:
         raise Exception("Invalid ItemType option ({0})".format(ItemType))
