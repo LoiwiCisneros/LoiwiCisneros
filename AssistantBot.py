@@ -43,9 +43,9 @@ class Assistant:
         self.reset_values()
         for index in range(star_index, (len(self.wb.sheetnames) if last_index is None else last_index)):
             span_info = self.download_excel_span_info(index)
-            beam_name = span_info['beam_name'].split('-')[0] + span_info['beam_name'].split('-')[1]
-            if span_info['beam_name'].split('-')[1] not in beams_nums:
-                beams_nums.append(span_info['beam_name'].split('-')[1])
+            beam_name = span_info['span_name'].split('-')[0] + span_info['span_name'].split('-')[1]
+            if span_info['span_name'].split('-')[1] not in beams_nums:
+                beams_nums.append(span_info['span_name'].split('-')[1])
                 self.set_default_variable(beam_name, {
                     "beam_name": beam_name,
                     "spans_num": 0,
@@ -64,7 +64,7 @@ class Assistant:
 
     def download_excel_span_info(self, index):
         ws = self.wb[self.wb.sheetnames[index]]
-        beam_keys = ['beam_name', 'left_support_width', 'free_length', 'right_support_width', 'width', 'height',
+        span_keys = ['span_name', 'left_support_width', 'free_length', 'right_support_width', 'width', 'height',
                      'bars_info', 'stirrups_info']
         beam_name = ws.title
         left_support_width = ws['M78'].value
@@ -248,14 +248,14 @@ class Assistant:
         stirrups_info = stirrups_info + '%%C' + ws['L400'].value + ': ' + ws['N416'].value
         dif_stirrups = ws['Q416'].value == 'c/ext.'
         if dif_stirrups:
-            stirrups_info = stirrups_info + 'c/ext.'
+            stirrups_info = stirrups_info + ' c/ext.'
         else:
-            stirrups_info = stirrups_info + '----->    <-----'
+            stirrups_info = stirrups_info + ' ----->    <----- '
             stirrups_info = stirrups_info + str(ws['I409'].value) + ' (est. rect.) '
             stirrups_info = stirrups_info + (
                 '+ ' + str(ws['J409'].value) + ' (gancho) ' if ws['J409'].value != 0 else '')
             stirrups_info = stirrups_info + '%%C' + ws['L409'].value + ': ' + ws['V416'].value
-        return dict(zip(beam_keys, [beam_name, left_support_width, free_length, right_support_width, width, height,
+        return dict(zip(span_keys, [beam_name, left_support_width, free_length, right_support_width, width, height,
                                     bars_info, stirrups_info]))
 
 

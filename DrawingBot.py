@@ -211,12 +211,30 @@ class CAD:
         self.create_new_layer('LCM-TEXTOS', 3)
         self.create_new_layer('LCM-COTAS', 1)
         self.acadDoc.ActiveLayer = self.layers['LCM-TRAZO']
-        # self.create_new_dim_style()
+        self.create_new_dim_style('PRISMA 1-25')
 
     def create_new_dim_style(self, name: str = "1-100"):
         new_style = self.acad.ActiveDocument.DimStyles.Add(name)
+        self.acadDoc.SetVariable("DIMDLE", 0.20)
+        self.acadDoc.SetVariable("DIMDLI", 0.20)
+        self.acadDoc.SetVariable("DIMEXE", 0.20)
+        self.acadDoc.SetVariable("DIMEXO", 0.20)
+        self.acadDoc.SetVariable("DIMBLK", 'ArchTick')
+        self.acadDoc.SetVariable("DIMBLK1", 'ArchTick')
+        self.acadDoc.SetVariable("DIMBLK2", 'ArchTick')
+        self.acadDoc.SetVariable("DIMLDRBLK", 'ArchTick')
+        self.acadDoc.SetVariable("DIMASZ", 0.25)
+        self.acadDoc.SetVariable("DIMCEN", 0.09)
+        self.acadDoc.SetVariable("DIMTXT", 0.25)
+        self.acadDoc.SetVariable("DIMTAD", 2)
+        self.acadDoc.SetVariable("DIMGAP", 0.1)
+        self.acadDoc.SetVariable("DIMTMOVE", 2)
+        self.acadDoc.SetVariable("DIMSCALE", 0.25)
+        self.acadDoc.SetVariable("DIMDSEP", '.')
+        self.acadDoc.SetVariable("DIMRND", 0.00)
+        self.acadDoc.SetVariable("DIMZIN", 5)
+        new_style.CopyFrom(self.acadDoc)
         self.acadDoc.ActiveDimStyle = new_style
-        self.acadDoc.SetVariable("DIMALTD", 2)
 
     def create_new_layer(self, name: str, color_num: int = 1, line_type: str = 'Continuous',
                          line_weight: str = 'Default'):
@@ -227,13 +245,18 @@ class CAD:
         except Exception:
             pass
         finally:
-            new_layer.Linetype = line_type
+            new_layer.LineType = line_type
         if line_weight != 'Default':
-            new_layer.Lineweight = line_weight
+            new_layer.LineWeight = line_weight
         self.layers[name] = new_layer
 
     def draw_beam(self, beam_info: dict):
         base_point = 0
+        left_edge = beam_info['spans_info'][0]['left_support_width']
+        left_height = beam_info['spans_info'][0]['height']
+        if left_edge != 0:
+            self.draw_line_by_points([base_point - left_edge / 2, -left_height - 0.5, 0],
+                                     [base_point - left_edge / 2, 0.5, 0])
         for span_info in beam_info['spans_info']:
             # w = span_info['width']  # width
             h = span_info['height']  # height
@@ -249,14 +272,28 @@ class CAD:
                 if right_shw != 0 else self.draw_line_by_points([right_face, 0, 0], [right_face, -0.5 * h, 0])
             self.select_last(3)
             self.mirror([left_face, -0.5 * h, 0], [right_face, -0.5 * h, 0])
+            self.draw_linear_dimension(Point(left_face, -h - 0.5), Point(right_face, -h - 0.5), -0.25)
             if left_shw != 0:
                 self.draw_concrete_extension([base_point - left_shw, 0.5, 0], [base_point + left_shw, 0.5, 0])
                 self.select_last(5)
                 self.copy([0, 0.5, 0], [0, -h - 0.5, 0])
+                self.draw_linear_dimension(Point(base_point - left_shw, -h - 0.5),
+                                           Point(base_point + left_shw, -h - 0.5), -0.25)
             for bar_data in span_info['bars_info']:
                 self.draw_beam_longitudinal_bar(h / 2, left_face, right_face, bar_data)
-            self.draw_text(span_info['stirrups_info'], Point((left_face + right_face) / 2, -h - 0.25))
+            self.draw_text(span_info['span_name'], Point((left_face + right_face) / 2, 0.75), 0.10)
+            self.draw_text(span_info['stirrups_info'], Point((left_face + right_face) / 2, -h - 0.4))
             base_point += left_shw + fl + right_shw
+        right_edge = beam_info['spans_info'][-1]['right_support_width']
+        right_height = beam_info['spans_info'][-1]['height']
+        if right_edge != 0:
+            self.draw_line_by_points([base_point + right_edge / 2, -right_height - 0.5, 0],
+                                     [base_point + right_edge / 2, 0.5, 0])
+            self.draw_concrete_extension([base_point - right_edge / 2, 0.5, 0], [base_point + right_edge / 2, 0.5, 0])
+            self.select_last(5)
+            self.copy([0, 0.5, 0], [0, -right_height - 0.5, 0])
+            self.draw_linear_dimension(Point(base_point - right_edge / 2, -right_height - 0.5),
+                                       Point(base_point + right_edge / 2, -right_height - 0.5), -0.25)
 
     def draw_column(self):
         pass
@@ -302,11 +339,23 @@ class CAD:
             T1 = self.acadModel.AddMText(P0.APoint, BoxWidth, text)
         else:
             T1 = self.acadModel.AddText(text, P0.APoint, TSize)
-        T1.layer = layer
-        T1.horizontalalignment = 1
-        T1.textalignmentpoint = P0.APoint
-        T1.alignment = alignment
+        T1.Layer = layer
+        T1.HorizontalAlignment = 1
+        T1.TextAlignmentPoint = P0.APoint
+        T1.Alignment = alignment
         self.objects_list.append(T1)
+
+    def draw_linear_dimension(self, P0: Union[Point, list], P1: Union[Point, list], text_offset: float = 0.25,
+                              layer: str = 'LCM-COTAS'):
+        if not isinstance(P0, Point):
+            P0 = Point(P0)
+        if not isinstance(P1, Point):
+            P1 = Point(P1)
+        P2 = Point((P0.x + P1.x) / 2 + (text_offset if P0.x == P1.x else 0),
+                   (P0.y + P1.y) / 2 + (text_offset if P0.y == P1.y else 0))
+        D1 = self.acadModel.AddDimAligned(P0.APoint, P1.APoint, P2.APoint)
+        D1.Layer = layer
+        self.objects_list.append(D1)
 
     def draw_concrete_extension(self, P0: Union[Point, list], P1: Union[Point, list], fixed_height=0.2, ratio=0.0):
         if not isinstance(P0, Point):
@@ -353,18 +402,30 @@ class CAD:
                                      'LCM-ACERO')
             self.draw_text(label, Point(left_face + right_cut - 0.1,
                                         -beam_middle + (beam_middle - edge_offset - 0.05) * side))
+            self.draw_linear_dimension(Point(left_face, -beam_middle + beam_middle * side),
+                                       Point(left_face + right_cut, -beam_middle + beam_middle * side),
+                                       text_offset=0.25 * side)
         elif case == 2:
             self.draw_line_by_points(Point(left_face + left_cut, -beam_middle + (beam_middle - edge_offset) * side),
                                      Point(right_face - right_cut, -beam_middle + (beam_middle - edge_offset) * side),
                                      'LCM-ACERO')
             self.draw_text(label, Point(left_face + left_cut + 0.1,
                                         -beam_middle + (beam_middle - edge_offset - 0.05) * side))
+            self.draw_linear_dimension(Point(left_face, -beam_middle + beam_middle * side),
+                                       Point(left_face + left_cut, -beam_middle + beam_middle * side),
+                                       text_offset=0.25 * side)
+            self.draw_linear_dimension(Point(right_face, -beam_middle + beam_middle * side),
+                                       Point(right_face - right_cut, -beam_middle + beam_middle * side),
+                                       text_offset=0.25 * side)
         elif case == 3:
             self.draw_line_by_points(Point(right_face - left_cut, -beam_middle + (beam_middle - edge_offset) * side),
                                      Point(right_face, -beam_middle + (beam_middle - edge_offset) * side),
                                      'LCM-ACERO')
             self.draw_text(label, Point(right_face - left_cut + 0.1,
                                         -beam_middle + (beam_middle - edge_offset - 0.05) * side))
+            self.draw_linear_dimension(Point(right_face, -beam_middle + beam_middle * side),
+                                       Point(right_face - left_cut, -beam_middle + beam_middle * side),
+                                       text_offset=0.25 * side)
         # if left_con == 0:
         #     tie_case = determine_tie_case(bar_case, bar_restrictions[0], side)
         #     ld = get_dev_length(D, tie_case)
@@ -623,7 +684,7 @@ if __name__ == '__main__':
 
     # draftsman.select_all()
     # draftsman.move([0, 0, 0], [0, 5, 0])
-    assistant.download_excel_beams_info(last_index=7)
+    assistant.download_excel_beams_info()
     with open('Beams_info') as jsonFile:
         beams_info = json.load(jsonFile)
     for name, info in beams_info.items():
