@@ -5,8 +5,13 @@ import math
 from fractions import Fraction
 import numpy as np
 import time
-import AssistantBot
+from AssistantBot import Assistant
 from operator import itemgetter
+from typing import Union, Tuple
+from typing import Annotated
+from typing import Self
+from typing import Any
+import json
 
 
 def aDouble(xyz):
@@ -18,7 +23,8 @@ def aDispatch(vObject):
 
 
 class Point:
-    def __init__(self, x, y=0.0, z=0.0):
+    def __init__(self, x: Union[int, float, np.ndarray, list, tuple], y: Union[int, float] = 0.0,
+                 z: Union[int, float] = 0.0):
         if isinstance(x, (np.ndarray, list, tuple)):
             if len(x) == 3:
                 self.x, self.y, self.z = x[0], x[1], x[2]
@@ -34,17 +40,17 @@ class Point:
             raise Exception("Integer or float expected")
         self.APoint = win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, (self.x, self.y, self.z))
 
-    def distance2point(self, P0):
+    def distance2point(self, P0: Self) -> float:
         return math.sqrt((self.x - P0.x) ** 2 +
                          (self.y - P0.y) ** 2 +
                          (self.z - P0.z) ** 2)
 
-    def distance2line(self, L0):
+    def distance2line(self, L0: 'Line') -> float:
         x, y, z = self.x, self.y, self.z
         A, B, C = L0.A, L0.B, L0.C
         return math.fabs(A * x + B * y + C) / math.sqrt(A ** 2 + B ** 2)
 
-    def projection2line(self, L0):
+    def projection2line(self, L0: 'Line') -> Self:
         x, y, z = self.x, self.y, self.z
         m, b = L0.m, L0.b
         m2 = -1 / m
@@ -53,9 +59,9 @@ class Point:
         int_y = m2 * int_x + b2
         return Point(int_x, int_y, z)
 
-    def rotation(self, c, angle):
+    def rotation(self, c: Self, angle: Union[float, int]) -> Self:
         x, y, z = self.x, self.y, self.z
-        cx, cy = c
+        cx, cy = c.x, c.y
         s = math.sin(angle)
         c = math.cos(angle)
         x = x - cx
@@ -66,12 +72,12 @@ class Point:
         y = y_new + cy
         return Point(x, y, z)
 
-    def interpolate2point(self, P0, alpha):
+    def interpolate2point(self, P0: Self, alpha: float) -> Self:
         x, y, z = self.x, self.y, self.z
         x0, y0, z0 = P0.x, P0.y, P0.z
         return Point(x0 * alpha + x * (1 - alpha), y0 * alpha + y * (1 - alpha), z0 * alpha + z * (1 - alpha))
 
-    def is_collinear(self, L0):
+    def is_collinear(self, L0: 'Line') -> bool:
         L1 = Line(L0.P0, self)
         if L0.is_same(L1):
             return True
@@ -91,7 +97,7 @@ class Line:
             self.b = self.P0.y - self.m * self.P0.x
         self.A, self.B, self.C = self.line2general()
 
-    def line2general(self):
+    def line2general(self) -> tuple[int | float, int | float, int | float]:
         if self.m is None:
             return 1, 0, -self.P0.x
         else:
@@ -107,7 +113,7 @@ class Line:
         C = C * lcm
         return A, B, C
 
-    def intersect2line(self, L0):
+    def intersect2line(self, L0: Self) -> Point:
         A, B, C = self.A, self.B, -self.C
         A0, B0, C0 = L0.A, L0.B, -L0.C
         if A * B0 - A0 * B == 0:
@@ -115,10 +121,10 @@ class Line:
         else:
             return Point((C * B0 - C0 * B) / (A * B0 - A0 * B), (A * C0 - A0 * C) / (A * B0 - A0 * B))
 
-    def mid_point(self):
+    def mid_point(self) -> Point:
         return self.P0.interpolate2point(self.P1, 0.5)
 
-    def is_parallel(self, L0):
+    def is_parallel(self, L0: Self) -> bool:
         A, B, C = self.A, self.B, self.C
         A0, B0, C0 = L0.A, L0.B, L0.C
         if A0 != 0 and B0 != 0:
@@ -132,7 +138,7 @@ class Line:
             else:
                 return False
 
-    def is_same(self, L0):
+    def is_same(self, L0: Self) -> bool:
         A, B, C = self.A, self.B, self.C
         A0, B0, C0 = L0.A, L0.B, L0.C
         if A0 != 0 and B0 != 0 and C0 != 0:
@@ -147,43 +153,44 @@ class Line:
                 return False
 
 
-def get_dev_length(D, tie_case):
-    lengths = AssistantBot.get_variable_value("DEV_LENGTHS")
-    if tie_case != 2:
-        # if case == 0:
-        #     ld = 0
-        # else:
-        ld = lengths.get(str(tie_case) + str(D))
-        return ld
-    else:
-        [ld, tie_long] = lengths.get(str(tie_case) + str(D))
-        return [ld, tie_long]
+# def get_dev_length(D, tie_case):
+#     lengths = AssistantBot.get_variable_value("DEV_LENGTHS")
+#     if tie_case != 2:
+#         # if case == 0:
+#         #     ld = 0
+#         # else:
+#         ld = lengths.get(str(tie_case) + str(D))
+#         return ld
+#     else:
+#         [ld, tie_long] = lengths.get(str(tie_case) + str(D))
+#         return [ld, tie_long]
 
 
-def determine_tie_case(bar_case, bar_restriction, side):
-    if side == 1:
-        case = 0
-        momentum_sign = get_envelope_momentum_signs(bar_case)[0]
-    elif side == -1:
-        case = 1
-        momentum_sign = get_envelope_momentum_signs(bar_case)[1]
-
-    return case
-
-
-def get_envelope_momentum_signs(bar_case):
-    AssistantBot.get_variable_value("ACTUAL_BEAM_FORCES_INFO").get(str(bar_case))
-    return sign
+# def determine_tie_case(bar_case, bar_restriction, side):
+#     if side == 1:
+#         case = 0
+#         momentum_sign = get_envelope_momentum_signs(bar_case)[0]
+#     elif side == -1:
+#         case = 1
+#         momentum_sign = get_envelope_momentum_signs(bar_case)[1]
+#
+#     return case
+#
+#
+# def get_envelope_momentum_signs(bar_case):
+#     AssistantBot.get_variable_value("ACTUAL_BEAM_FORCES_INFO").get(str(bar_case))
+#     return sign
 
 
 class CAD:
     def __init__(self, file_name='Drawing1.dwg'):
         self.acad = win32com.client.Dispatch("AutoCAD.Application")
+        self.acad.Visible = True
         # self.acad = Autocad(create_if_not_exists=True, visible=True)
         try:
             self.acad.ActiveDocument
-        except Exception:
-            self.acad.Documents.Add("Drawing1.dwg")
+        except BaseException:
+            self.acad.Documents.Add("NewDrawing.dwg")
             time.sleep(3)
         documents = []
         for doc in self.acad.Documents:
@@ -197,21 +204,22 @@ class CAD:
         self.objects_list = []
         self.selection_set = self.acadDoc.ActiveSelectionSet
         self.selected_objects = []
-        self.layers_list = []
-        self.create_new_layer('A-TRAZO', 7)
-        self.create_new_layer('A-ACERO', 4)
-        self.create_new_layer('A-ESTRIBOS', 1)
-        self.create_new_layer('A-TEXTOS', 3)
-        self.create_new_layer('A-COTAS', 1)
-        self.acadDoc.ActiveLayer = self.layers_list[0]
+        self.layers = {}
+        self.create_new_layer('LCM-TRAZO', 7)
+        self.create_new_layer('LCM-ACERO', 4)
+        self.create_new_layer('LCM-ESTRIBOS', 1)
+        self.create_new_layer('LCM-TEXTOS', 3)
+        self.create_new_layer('LCM-COTAS', 1)
+        self.acadDoc.ActiveLayer = self.layers['LCM-TRAZO']
         # self.create_new_dim_style()
 
-    def create_new_dim_style(self, name="1-100"):
+    def create_new_dim_style(self, name: str = "1-100"):
         new_style = self.acad.ActiveDocument.DimStyles.Add(name)
         self.acadDoc.ActiveDimStyle = new_style
         self.acadDoc.SetVariable("DIMALTD", 2)
 
-    def create_new_layer(self, name, color_num=1, line_type='Continuous', line_weight='Default'):
+    def create_new_layer(self, name: str, color_num: int = 1, line_type: str = 'Continuous',
+                         line_weight: str = 'Default'):
         new_layer = self.acadDoc.Layers.Add(name)
         new_layer.color = color_num
         try:
@@ -222,91 +230,33 @@ class CAD:
             new_layer.Linetype = line_type
         if line_weight != 'Default':
             new_layer.Lineweight = line_weight
-        self.layers_list.append(new_layer)
+        self.layers[name] = new_layer
 
-    def draw_beam(self, beam_geometry, beam_restraints, beam_reinforcement_info):
-        h_max = max(beam_geometry[1])
-        lt = sum(beam_geometry[2]) + sum(beam_restraints)
-        ap = [0.5 * beam_restraints[0]]  # left axis position
-        span_number = len(beam_restraints) - 1
-        if beam_restraints[0] != 0:
-            self.draw_line([0, 0.4, 0], [0, -h_max - 0.4, 0])
-        if beam_restraints[-1] != 0:
-            self.draw_line([lt, 0.4, 0], [lt, -h_max - 0.4, 0])
-        for i in range(span_number):
-            w = beam_geometry[0][i]  # width
-            h = beam_geometry[1][i]  # height
-            fl = beam_geometry[2][i]  # free length
-            slr = beam_restraints[i] * 0.5  # span_left_restraint
-            srr = beam_restraints[i + 1] * 0.5  # span_right_restraint
-            self.draw_line([ap[i] + slr, 0, 0], [ap[i] + slr + fl, 0, 0])
-            self.draw_line([ap[i] + slr, 0, 0], [ap[i] + slr, 0.4, 0]) if slr != 0 else \
-                self.draw_line([ap[i] + slr, 0, 0], [ap[i] + slr, -0.5 * h, 0])
-            self.draw_line([ap[i] + slr + fl, 0, 0], [ap[i] + slr + fl, 0.4, 0]) if srr != 0 else \
-                self.draw_line([ap[i] + slr + fl, 0, 0], [ap[i] + slr + fl, -0.5 * h, 0])
+    def draw_beam(self, beam_info: dict):
+        base_point = 0
+        for span_info in beam_info['spans_info']:
+            # w = span_info['width']  # width
+            h = span_info['height']  # height
+            fl = span_info['free_length']  # free length
+            left_shw = span_info['left_support_width'] * 0.5  # half of left_support_width
+            right_shw = span_info['right_support_width'] * 0.5  # half of right_support_width
+            left_face = base_point + left_shw
+            right_face = base_point + left_shw + fl
+            self.draw_line_by_points([left_face, 0, 0], [right_face, 0, 0])
+            self.draw_line_by_points([left_face, 0, 0], [left_face, 0.5, 0]) if left_shw != 0 \
+                else self.draw_line_by_points([left_face, 0, 0], [left_face, -0.5 * h, 0])
+            self.draw_line_by_points([right_face, 0, 0], [right_face, 0.5, 0]) \
+                if right_shw != 0 else self.draw_line_by_points([right_face, 0, 0], [right_face, -0.5 * h, 0])
             self.select_last(3)
-            self.mirror([ap[i] + slr, -0.5 * h, 0], [ap[i] + slr + fl, -0.5 * h, 0])
-            if h < h_max and slr != 0:
-                self.draw_line([ap[i] + slr, -h_max - 0.4, 0], [ap[i] + slr, -h - 0.4, 0])
-            if h < h_max and srr != 0:
-                self.draw_line([ap[i] + slr + fl, -h_max - 0.4, 0], [ap[i] + slr + fl, -h - 0.4, 0])
-            ap.append(ap[i] + slr + fl + srr)
-        for i in range(len(beam_restraints)):
-            if beam_restraints[i] != 0:
-                self.draw_concrete_extension([ap[i] - beam_restraints[i] * 0.5, 0.4, 0],
-                                             [ap[i] + beam_restraints[i] * 0.5, 0.4, 0])
+            self.mirror([left_face, -0.5 * h, 0], [right_face, -0.5 * h, 0])
+            if left_shw != 0:
+                self.draw_concrete_extension([base_point - left_shw, 0.5, 0], [base_point + left_shw, 0.5, 0])
                 self.select_last(5)
-                self.copy([0, 0.4, 0], [0, -h_max - 0.4, 0])
-        for i in range(span_number):
-            for bar_data in beam_reinforcement_info[0][i]:
-                # bar_data = bar_data + [beam_restraints[i], beam_restraints[i + 1]]
-                if bar_data[0] == 0:
-                    if bar_data[7] == 1:
-                        bar_data[5] -= beam_restraints[i] * 0.5
-                    if bar_data[8] == 1:
-                        bar_data[6] += beam_restraints[i + 1] * 0.5
-                elif bar_data[0] == 1:
-                    if bar_data[7] == 1:
-                        bar_data[5] -= beam_restraints[i] * 0.5
-                elif bar_data[0] == 2:
-                    pass
-                elif bar_data[0] == 3:
-                    if bar_data[8] == 1:
-                        bar_data[6] += beam_restraints[i + 1] * 0.5
-                self.draw_beam_longitudinal_bar([ap[i] + beam_restraints[i] * 0.5, beam_geometry[1][i] * 0.5], bar_data)
-            length_over = beam_geometry[2][i]
-            last_position = 0
-            if len(beam_reinforcement_info[1][i]) == 1 and beam_reinforcement_info[1][i][0][0] == 0:
-                stirrups_offset = beam_reinforcement_info[1][i][0][1]
-                stirrups_spacing = beam_reinforcement_info[1][i][0][2]
-                stirrups_number = math.floor((length_over - stirrups_offset) / (2 * stirrups_spacing)) + 1
-                beam_reinforcement_info[1][i] = [[1, stirrups_offset, stirrups_spacing, stirrups_number],
-                                                 [2, stirrups_offset, stirrups_spacing, stirrups_number]]
-            for stirrup_data in beam_reinforcement_info[1][i]:
-                stirrups_spacing = stirrup_data[2]
-                stirrups_number = stirrup_data[3]
-                if stirrup_data[0] == 1:
-                    start_point = ap[i] + beam_restraints[i] * 0.5 + stirrup_data[1]
-                    last_position = stirrup_data[1] + stirrups_spacing * (stirrups_number - 1)
-                    length_over -= last_position
-                elif stirrup_data[0] == 2:
-                    start_point = ap[i + 1] - beam_restraints[i + 1] * 0.5 - + stirrup_data[1]
-                    length_over -= stirrup_data[1] + stirrups_spacing * (stirrups_number - 1)
-                    stirrups_spacing = -stirrup_data[2]
-                else:
-                    length_over = round(length_over, 4)
-                    aux = round((length_over - 2 * stirrup_data[1]) % stirrups_spacing, 4)
-                    if aux == stirrups_spacing:
-                        aux = 0
-                        stirrups_number = (length_over - 2 * stirrup_data[1]) / stirrups_spacing + 1
-                    else:
-                        stirrups_number = math.ceil((length_over - 2 * stirrup_data[1]) / stirrups_spacing)
-                    start_point = ap[i] + beam_restraints[i] * 0.5 + round(
-                        last_position + stirrup_data[1] + 0.5 * aux, 4)
-                self.draw_line(Point(start_point, -0.06, 0), Point(start_point, - beam_geometry[1][i] + 0.06, 0),
-                               'A-ESTRIBOS')
-                self.select_last(1)
-                self.array(1, stirrups_number, 0, stirrups_spacing)
+                self.copy([0, 0.5, 0], [0, -h - 0.5, 0])
+            for bar_data in span_info['bars_info']:
+                self.draw_beam_longitudinal_bar(h / 2, left_face, right_face, bar_data)
+            self.draw_text(span_info['stirrups_info'], Point((left_face + right_face) / 2, -h - 0.25))
+            base_point += left_shw + fl + right_shw
 
     def draw_column(self):
         pass
@@ -324,7 +274,12 @@ class CAD:
         P0.layer = layer
         self.objects_list.append(P0)
 
-    def draw_line(self, P0, P1, layer='A-TRAZO'):
+    def draw_line(self, L0: Line, layer: str = 'LCM-TRAZO'):
+        L1 = self.acadModel.AddLine(L0.P0.APoint, L0.P1.APoint)
+        L1.layer = layer
+        self.objects_list.append(L1)
+
+    def draw_line_by_points(self, P0: Union[Point, list], P1: Union[Point, list], layer: str = 'LCM-TRAZO'):
         if not isinstance(P0, Point):
             P0 = Point(P0)
         if not isinstance(P1, Point):
@@ -333,23 +288,27 @@ class CAD:
         L1.layer = layer
         self.objects_list.append(L1)
 
-    def draw_polyline(self, points, layer='A-TRAZO'):
+    def draw_polyline(self, points, layer='LCM-TRAZO'):
         points = aDouble(points)
         PL1 = self.acadModel.AddPolyline(points)
         PL1.layer = layer
         self.objects_list.append(PL1)
 
-    def draw_text(self, P0, TSize=0.05, MText=False, BoxWidth=0, layer='A-TRAZO'):
+    def draw_text(self, text: str, P0: Union[Point, list], TSize: float = 0.05, layer: str = 'LCM-TEXTOS',
+                  alignment: int = 10, MText: bool = False, BoxWidth: float = 0):
         if not isinstance(P0, Point):
             P0 = Point(P0)
         if MText:
-            T1 = self.acadModel.AddMText(P0.APoint, BoxWidth, "TEXT1")
+            T1 = self.acadModel.AddMText(P0.APoint, BoxWidth, text)
         else:
-            T1 = self.acadModel.AddText("TEXT1", P0.APoint, TSize)
+            T1 = self.acadModel.AddText(text, P0.APoint, TSize)
         T1.layer = layer
+        T1.horizontalalignment = 1
+        T1.textalignmentpoint = P0.APoint
+        T1.alignment = alignment
         self.objects_list.append(T1)
 
-    def draw_concrete_extension(self, P0, P1, fixed_height=0.2, ratio=0.0):
+    def draw_concrete_extension(self, P0: Union[Point, list], P1: Union[Point, list], fixed_height=0.2, ratio=0.0):
         if not isinstance(P0, Point):
             P0 = Point(P0)
         if not isinstance(P1, Point):
@@ -368,27 +327,44 @@ class CAD:
                     P0.y + 0.5 * d * math.sin(angle) + 0.5 * h * math.sin(angle + 0.5 * math.pi))
         P2b = Point(P1.x - 0.5 * d * math.cos(angle) - 0.5 * h * math.cos(angle + 0.5 * math.pi),
                     P1.y - 0.5 * d * math.sin(angle) - 0.5 * h * math.sin(angle + 0.5 * math.pi))
-        self.draw_line(P0, P0p)
-        self.draw_line(P0p, P2t)
-        self.draw_line(P2t, P2b)
-        self.draw_line(P2b, P1p)
-        self.draw_line(P1p, P1)
+        self.draw_line_by_points(P0, P0p)
+        self.draw_line_by_points(P0p, P2t)
+        self.draw_line_by_points(P2t, P2b)
+        self.draw_line_by_points(P2b, P1p)
+        self.draw_line_by_points(P1p, P1)
 
-    def draw_beam_longitudinal_bar(self, ip, bar_data, bar_restrictions=None, tie_case=-1):
-        if bar_restrictions is None:
-            bar_restrictions = [0, 0]
-        bar_case = bar_data[0]
-        N = bar_data[1]
-        D = bar_data[2]
-        side = bar_data[3]
-        order = bar_data[4]
-        left_cut = bar_data[5]
-        right_cut = bar_data[6]
-        left_con = bar_data[7]
-        right_con = bar_data[8]
-        edge_offset = 0.06 + 0.04 * order
-        self.draw_line(Point(ip[0] + left_cut, -ip[1] + (ip[1] - edge_offset) * side),
-                       Point(ip[0] + right_cut, -ip[1] + (ip[1] - edge_offset) * side), 'A-ACERO')
+    def draw_beam_longitudinal_bar(self, beam_middle: float, left_face: float, right_face: float, bar_data: dict):
+        label = bar_data['label']
+        case = bar_data['case']
+        side = bar_data['side']
+        order = bar_data['order']
+        left_cut = bar_data['left_cut']
+        right_cut = bar_data['right_cut']
+        edge_offset = 0.05 + 0.05 * order
+        if case == 0:
+            self.draw_line_by_points(Point(left_face, -beam_middle + (beam_middle - edge_offset) * side),
+                                     Point(right_face, -beam_middle + (beam_middle - edge_offset) * side),
+                                     'LCM-ACERO')
+            self.draw_text(label, Point((left_face + right_face) / 2,
+                                        -beam_middle + (beam_middle + edge_offset) * side))
+        elif case == 1:
+            self.draw_line_by_points(Point(left_face, -beam_middle + (beam_middle - edge_offset) * side),
+                                     Point(left_face + right_cut, -beam_middle + (beam_middle - edge_offset) * side),
+                                     'LCM-ACERO')
+            self.draw_text(label, Point(left_face + right_cut - 0.1,
+                                        -beam_middle + (beam_middle - edge_offset - 0.05) * side))
+        elif case == 2:
+            self.draw_line_by_points(Point(left_face + left_cut, -beam_middle + (beam_middle - edge_offset) * side),
+                                     Point(right_face - right_cut, -beam_middle + (beam_middle - edge_offset) * side),
+                                     'LCM-ACERO')
+            self.draw_text(label, Point(left_face + left_cut + 0.1,
+                                        -beam_middle + (beam_middle - edge_offset - 0.05) * side))
+        elif case == 3:
+            self.draw_line_by_points(Point(right_face - left_cut, -beam_middle + (beam_middle - edge_offset) * side),
+                                     Point(right_face, -beam_middle + (beam_middle - edge_offset) * side),
+                                     'LCM-ACERO')
+            self.draw_text(label, Point(right_face - left_cut + 0.1,
+                                        -beam_middle + (beam_middle - edge_offset - 0.05) * side))
         # if left_con == 0:
         #     tie_case = determine_tie_case(bar_case, bar_restrictions[0], side)
         #     ld = get_dev_length(D, tie_case)
@@ -401,12 +377,12 @@ class CAD:
         #     self.draw_tie_long_bar([ip[0] + right_cut, -ip[1] + (ip[1] - edge_offset) * side, 0], ld, tie_case, side,
         #                            1)
 
-    def draw_tie_long_bar(self, P0, ld, case=0, side=1, draw_to=-1, tie_long=0):
+    def draw_tie_long_bar(self, P0: Point, ld: float, case=0, side=1, draw_to=-1, tie_long=0):
         P1 = Point(P0.x + ld * draw_to, P0.y)
-        self.draw_line(P0, P1, 'A-ACERO')
+        self.draw_line_by_points(P0, P1, 'A-ACERO')
         if case == 1:
             P2 = Point(P1.x, P1.y - tie_long * side)
-            self.draw_line(P1, P2, 'A-ACERO')
+            self.draw_line_by_points(P1, P2, 'A-ACERO')
 
     def select_last(self, num_objects, selection_offset=0):
         selection = []
@@ -527,7 +503,7 @@ def reduce_vertices(vertices_list):
         P2 = Point(vertices_list[(i + 1) % n])
         if P0.is_collinear(Line(P1, P2)):
             delete_list.append(i)
-    res_list = sorted(list(set(index_list)-set(delete_list)))
+    res_list = sorted(list(set(index_list) - set(delete_list)))
     reduced_vertices_list = list(itemgetter(*res_list)(vertices_list))
     return reduced_vertices_list
 
@@ -603,49 +579,57 @@ def get_wall_axes(vertices_list):
 
 if __name__ == '__main__':
     draftsman = CAD('Drawing1.dwg')
-    draftsman.selection_set.Clear()
-    draftsman.selection_set.SelectOnScreen()
-    for number in range(draftsman.selection_set.Count):
-        item = draftsman.selection_set.Item(number)
-        coord = item.Coordinates
-        # tri_coord = get_wall_axes(coord)
-        # print(tri_coord)
-        vertices = np.array(coord)
-        total_vertex = int(vertices.size / 2)
-        vertices = np.split(vertices, total_vertex)
-        print(triangulate_polygon(vertices))
+    assistant = Assistant('Beams_info')
+    # draftsman.selection_set.Clear()
+    # draftsman.selection_set.SelectOnScreen()
+    # for number in range(draftsman.selection_set.Count):
+    #     item = draftsman.selection_set.Item(number)
+    #     coord = item.Coordinates
+    #     # tri_coord = get_wall_axes(coord)
+    #     # print(tri_coord)
+    #     vertices = np.array(coord)
+    #     total_vertex = int(vertices.size / 2)
+    #     vertices = np.split(vertices, total_vertex)
+    #     print(triangulate_polygon(vertices))
 
-        # mid_points = []
-        # for triangle in tri_coord:
-        #     p0 = triangle[0]
-        #     p1 = triangle[1]
-        #     P0 = Point(p0[0], p0[1])
-        #     P1 = Point(p1[0], p1[1])
-        #     draftsman.draw_line(p0, p1)
-        #     pm = P0.interpolate2point(P1, 0.5)
-        #     mid_points.append(pm)
-        # n = len(mid_points)
-        # index_list = list(range(0, n))
-        # lines = []
-        # for i in range(2, len(index_list)):
-        #     is_axis = False
-        #     P0 = mid_points[index_list[i-2]]
-        #     P1 = mid_points[index_list[i-1]]
-        #     L0 = Line(P0, P1)
-        #     for j in range(2, len(index_list)):
-        #         P2 = mid_points[index_list[j]]
-        #         if P2.is_collinear(L0):
-        #             index_list.pop(j)
-        #             is_axis = True
-        #     if is_axis:
-        #         index_list.pop(0)
-        #         index_list.pop(1)
-        #         lines.append(L0)
-        # for line in lines:
-        #     draftsman.draw_line(line.P0, line.P1, 'A-ACERO')
+    # mid_points = []
+    # for triangle in tri_coord:
+    #     p0 = triangle[0]
+    #     p1 = triangle[1]
+    #     P0 = Point(p0[0], p0[1])
+    #     P1 = Point(p1[0], p1[1])
+    #     draftsman.draw_line(p0, p1)
+    #     pm = P0.interpolate2point(P1, 0.5)
+    #     mid_points.append(pm)
+    # n = len(mid_points)
+    # index_list = list(range(0, n))
+    # lines = []
+    # for i in range(2, len(index_list)):
+    #     is_axis = False
+    #     P0 = mid_points[index_list[i-2]]
+    #     P1 = mid_points[index_list[i-1]]
+    #     L0 = Line(P0, P1)
+    #     for j in range(2, len(index_list)):
+    #         P2 = mid_points[index_list[j]]
+    #         if P2.is_collinear(L0):
+    #             index_list.pop(j)
+    #             is_axis = True
+    #     if is_axis:
+    #         index_list.pop(0)
+    #         index_list.pop(1)
+    #         lines.append(L0)
+    # for line in lines:
+    #     draftsman.draw_line(line.P0, line.P1, 'A-ACERO')
 
     # draftsman.select_all()
     # draftsman.move([0, 0, 0], [0, 5, 0])
+    assistant.download_excel_beams_info(last_index=7)
+    with open('Beams_info') as jsonFile:
+        beams_info = json.load(jsonFile)
+    for name, info in beams_info.items():
+        draftsman.draw_beam(info)
+        draftsman.select_all()
+        draftsman.move([0, 0, 0], [0, 5, 0])
     # beam_geo = [[0.25, 0.25, 0.25],
     #             [0.6, 0.8, 0.5],
     #             [5, 5, 6]]
@@ -658,8 +642,7 @@ if __name__ == '__main__':
     #                  [],
     #                  [],
     #                  []]]
-    # draftsman.draw_beam(beam_geo, beam_rest, beam_re_info)
-    # draftsman.zoom_all()
+    draftsman.zoom_all()
 
 # ANNOTATE
 # AN1 = acad.model.AddDimAligned(PBase, PEnd, PAnnotateEnd)
