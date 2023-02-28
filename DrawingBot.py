@@ -353,7 +353,7 @@ class CAD:
             P1 = Point(P1)
         P2 = Point((P0.x + P1.x) / 2 + (text_offset if P0.x == P1.x else 0),
                    (P0.y + P1.y) / 2 + (text_offset if P0.y == P1.y else 0))
-        D1 = self.acadModel.AddDimAligned(P0.APoint, P1.APoint, P2.APoint)
+        D1 = self.acadModel.AddDimRotated(P0.APoint, P1.APoint, P2.APoint, 0 if P0.y == P1.y else math.pi / 2)
         D1.Layer = layer
         self.objects_list.append(D1)
 
