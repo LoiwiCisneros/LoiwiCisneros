@@ -22,12 +22,6 @@ def clockwise_angle_and_distance(point, origin, ref_vec=[1, 0]):
     return angle, len_vector
 
 
-class CAD:
-    def __init__(self):
-        self.acad = win32com.client.Dispatch("AutoCAD.Application")
-        self.acadModel = self.acad.ActiveDocument.ModelSpace
-
-
 def validate_coordinate_system(Dir, CSys):
     if Dir in [1, 2, 3] and CSys == "Local":
         return True
@@ -413,7 +407,7 @@ class SAP:
 
     def define_rectangular_frame_property(self, Name: str, MatProp: str, T3: float, T2: float,
                                           Value: Annotated[list[float], 8] = None,
-                                          A=1, V2=1, V3=1, T=1, M2=1, M3=1, Mm=1, Wm=1):
+                                          A=1.0, V2=1.0, V3=1.0, T=1.0, M2=1.0, M3=1.0, Mm=1.0, Wm=1.0):
         self.SapModel.PropFrame.SetRectangle(Name, MatProp, T3, T2)
         if Value is None:
             Value = [A, V2, V3, T, M2, M3, Mm, Wm]
@@ -426,7 +420,7 @@ class SAP:
                                                     TopRightArea, BotLeftArea, BotRightArea)
 
     def define_rectangular_column_rebar(self, Name: str, MatPropLong: str, MatPropConfine: str, Cover: float,
-                                        NumberR3Bars: int, NumberR2Bars: int,  RebarSize: str, TieSize: str,
+                                        NumberR3Bars: int, NumberR2Bars: int, RebarSize: str, TieSize: str,
                                         TieSpacingLongit: float, Number2DirTieBars: int, Number3DirTieBars: int,
                                         ToBeDesigned: bool = False):
         Pattern = 1
@@ -721,11 +715,89 @@ if __name__ == "__main__":
     etabs = SAP()
     etabs.initialize(6)
     etabs.new_model(1)
-    # print(etabs.get_releases("1"))
-    # print(etabs.get_loads_distributed("1"))
-    print(etabs.draw_frame([2, 2, 0], [3, 5, 0]))
-    print(etabs.draw_frame([0, 1, 0], [2, 10, 0]))
-    print(etabs.draw_shell([[0, 0, 0], [1, 0, 0], [1, 3, 0], [0, 3, 0]]))
-    # pts = [[2,3], [5,2],[4,1],[3.5,1],[1,2],[2,1],[3,1],[3,3],[4,3]]
-    # sort = sorted(pts, key=clockwise_angle_and_distance)
-    # print(sort)
+    etabs.switch_units("kgf_cm_C")
+    # # print(etabs.get_releases("1"))
+    # # print(etabs.get_loads_distributed("1"))
+    # # print(etabs.draw_frame([2, 2, 0], [3, 5, 0]))
+    # # print(etabs.draw_frame([0, 1, 0], [2, 10, 0]))
+    # # print(etabs.draw_shell([[0, 0, 0], [1, 0, 0], [1, 3, 0], [0, 3, 0]]))
+    # # pts = [[2,3], [5,2],[4,1],[3.5,1],[1,2],[2,1],[3,1],[3,3],[4,3]]
+    # # sort = sorted(pts, key=clockwise_angle_and_distance)
+    # # print(sort)
+    Bbeam_list = list(range(15, 65, 5))
+    Hbeam_list = list(range(50, 105, 5)) + list(range(110, 210, 10))
+    Fcbeam_list = [210, 280, 350]
+    Bcol_list = list(range(15, 65, 5))
+    Hcol_list = list(range(40, 165, 5))
+    Fccol_list = [210, 280, 350, 420, 500]
+    Es_list = [10, 15, 17, 20, 25]
+    Ew_list = list(range(15, 55, 5))
+    Ef_list = list(range(50, 110, 10))
+    Fc_list = [175, 210, 280, 350, 420, 500]
+    Econc_list = [198400, 217400, 251000, 280600, 307400, 335400]
+    for index in range(len(Fc_list)):
+        Fc = Fc_list[index]
+        E = Econc_list[index]
+        etabs.define_material("CONC" + str(Fc), "Concrete", E, 0.15, 0.0000099)
+    for b_index in range(len(Bbeam_list)):
+        B = Bbeam_list[b_index]
+        for h_index in range(len(Hbeam_list)):
+            H = Hbeam_list[h_index]
+            for fc_index in range(len(Fcbeam_list)):
+                Fc = Fcbeam_list[fc_index]
+                etabs.define_rectangular_frame_property("V" + str(B) + "x" + str(H) + "-" + str(Fc) + "-AN",
+                                                        "CONC" + str(Fc), H, B, T=0.0001)
+    cols_created = []
+    for b_index in range(len(Bcol_list)):
+        B = Bcol_list[b_index]
+        if 15 <= B <= 40:
+            for h_index in range(len(Hcol_list)):
+                H = Hcol_list[h_index]
+                if B * 1000 + H in cols_created or H * 1000 + B in cols_created:
+                    print("col no creada")
+                    continue
+                if H / B > 4:
+                    continue
+                for fc_index in range(len(Fccol_list)):
+                    Fc = Fccol_list[fc_index]
+                    etabs.define_rectangular_frame_property("C" + str(B) + "x" + str(H) + "-" + str(Fc),
+                                                            "CONC" + str(Fc), H, B)
+                    etabs.define_rectangular_frame_property("C" + str(H) + "x" + str(B) + "-" + str(Fc),
+                                                            "CONC" + str(Fc), B, H)
+                cols_created.append(B * 1000 + H)
+                cols_created.append(H * 1000 + B)
+        # elif 45 <= B <= 50:
+        #     for h_index in range(len(Hcol_list)):
+        #         H = Hcol_list[h_index]
+        #         if B * 1000 + H in cols_created or H * 1000 + B in cols_created:
+        #             print("col no creada")
+        #             continue
+        #         if H / B > 3:
+        #             continue
+        #         for fc_index in range(len(Fc_list)):
+        #             Fc = Fc_list[fc_index]
+        #             if Fc == 175:
+        #                 continue
+        #             etabs.define_rectangular_frame_property("C" + str(B) + "x" + str(H) + "-" + str(Fc),
+        #                                                     "CONC" + str(Fc), H, B)
+        #             etabs.define_rectangular_frame_property("C" + str(H) + "x" + str(B) + "-" + str(Fc),
+        #                                                     "CONC" + str(Fc), B, H)
+        #         cols_created.append(B * 1000 + H)
+        #         cols_created.append(H * 1000 + B)
+        # else:
+        #     for h_index in range(len(Hcol_list)):
+        #         H = Hcol_list[h_index]
+        #         if B * 1000 + H in cols_created or H * 1000 + B in cols_created:
+        #             print("col no creada")
+        #             continue
+        #         for fc_index in range(len(Fc_list)):
+        #             Fc = Fc_list[fc_index]
+        #             if Fc == 175:
+        #                 continue
+        #             etabs.define_rectangular_frame_property("C" + str(B) + "x" + str(H) + "-" + str(Fc),
+        #                                                     "CONC" + str(Fc), H, B)
+        #             etabs.define_rectangular_frame_property("C" + str(H) + "x" + str(B) + "-" + str(Fc),
+        #                                                     "CONC" + str(Fc), B, H)
+        #         cols_created.append(B * 1000 + H)
+        #         cols_created.append(H * 1000 + B)
+    # print(cols_created)
