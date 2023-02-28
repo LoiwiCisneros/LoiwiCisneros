@@ -202,7 +202,7 @@ def convert_item_type(ItemType):
         ItemType = 1
     elif ItemType == "Group":
         ItemType = 2
-    elif ItemType == "SelectedObjects":
+    elif ItemType == "Selected Objects":
         ItemType = 3
     else:
         raise Exception("Invalid ItemType option ({0})".format(ItemType))
