@@ -183,22 +183,11 @@ class Line:
 
 
 class CAD:
-    def __init__(self, file_name='Drawing1.dwg'):
+    def __init__(self, file_name='NewDrawing.dwg'):
         self.acad = win32com.client.Dispatch("AutoCAD.Application")
         self.acad.Visible = True
-        # self.acad = Autocad(create_if_not_exists=True, visible=True)
-        try:
-            self.acad.ActiveDocument
-        except BaseException:
-            self.acad.Documents.Add("NewDrawing.dwg")
-            time.sleep(3)
-        documents = []
-        for doc in self.acad.Documents:
-            documents.append(doc)
-            if self.acad.ActiveDocument.Name != file_name:
-                self.acad.ActiveDocument = documents[-1]
-            else:
-                break
+        self.acad.Documents.Add()
+        time.sleep(3)
         self.acadDoc = self.acad.ActiveDocument
         self.acadModel = self.acadDoc.ModelSpace
         self.objects_list = []
@@ -279,7 +268,7 @@ class CAD:
                 self.copy([0, 0.5, 0], [0, -h - 0.5, 0])
                 self.draw_linear_dimension(Point(base_point - left_shw, -h - 0.5),
                                            Point(base_point + left_shw, -h - 0.5), -0.25)
-            for bar_data in span_info['bars_info']:
+            for bar_data in span_info['bars_info']['info']:
                 self.draw_beam_longitudinal_bar(h / 2, left_face, right_face, bar_data)
             self.draw_text(span_info['span_name'], Point((left_face + right_face) / 2, 0.75), 0.10)
             self.draw_text(span_info['stirrups_info'], Point((left_face + right_face) / 2, -h - 0.4))
@@ -684,7 +673,7 @@ if __name__ == '__main__':
 
     # draftsman.select_all()
     # draftsman.move([0, 0, 0], [0, 5, 0])
-    assistant.download_excel_beams_info()
+    assistant.download_excel_beams_info(star_index=3)
     with open('Beams_info') as jsonFile:
         beams_info = json.load(jsonFile)
     for name, info in beams_info.items():

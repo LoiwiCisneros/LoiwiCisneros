@@ -1,5 +1,6 @@
 import json
 import openpyxl
+import re
 from tkinter import filedialog
 
 
@@ -39,18 +40,25 @@ class Assistant:
             json.dump(dictionary, jsonFile)
 
     def download_excel_beams_info(self, star_index: int = 3, last_index: int = None):
-        beams_nums = []
+        storey_beam_numbers = {}
         self.reset_values()
         for index in range(star_index, (len(self.wb.sheetnames) if last_index is None else last_index)):
             span_info = self.download_excel_span_info(index)
-            beam_name = span_info['span_name'].split('-')[0] + span_info['span_name'].split('-')[1]
-            if span_info['span_name'].split('-')[1] not in beams_nums:
-                beams_nums.append(span_info['span_name'].split('-')[1])
-                self.set_default_variable(beam_name, {
-                    "beam_name": beam_name,
-                    "spans_num": 0,
-                    "spans_info": []
-                })
+            beam_storey = re.findall('V(.+?)-', span_info['span_name'])[0]
+            try:
+                beam_number = re.findall('-(.+?)-', span_info['span_name'])[0]
+            except BaseException:
+                beam_number = span_info['span_name'].split('-')[1]
+            beam_name = 'V' + beam_storey + '-' + beam_number
+            if beam_storey not in storey_beam_numbers:
+                storey_beam_numbers.setdefault(beam_storey, [])
+            if beam_number not in storey_beam_numbers[beam_storey]:
+                storey_beam_numbers[beam_storey].append(beam_number)
+            self.set_default_variable(beam_name, {
+                "beam_name": beam_name,
+                "spans_num": 0,
+                "spans_info": []
+            })
             beam_dict = self.get_variable_value(beam_name)
             spans_num = beam_dict['spans_num']
             spans_info = beam_dict['spans_info']
@@ -73,7 +81,9 @@ class Assistant:
         width = ws['Q78'].value / 100
         height = ws['Q79'].value / 100
 
-        bars_info = []
+        bars_info = {'quantity':
+                         {'top_left': 0, 'top_right': 0, 'bottom_left': 0, 'bottom_center': 0, 'bottom_right': 0},
+                     'info': []}
         bars_keys = ['label', 'case', 'side', 'order', 'left_cut', 'right_cut']
         # Top long bar
         if ws['O90'].value != 0 or ws['O91'].value != 0:
@@ -87,7 +97,7 @@ class Assistant:
             order = 0
             left_cut = 0
             right_cut = 0
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Bottom long bar
         if ws['O135'].value != 0 or ws['O136'].value != 0:
             label = ''
@@ -101,7 +111,7 @@ class Assistant:
             order = 0
             left_cut = 0
             right_cut = 0
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Top left first order bar
         if ws['J101'].value != 0 or ws['J103'].value != 0:
             label = ''
@@ -115,7 +125,8 @@ class Assistant:
             order = 1
             left_cut = 0
             right_cut = ws['H92'].value
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['top_left'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Top left second order bar
         if ws['F103'].value != 0 or ws['F105'].value != 0:
             label = ''
@@ -129,7 +140,8 @@ class Assistant:
             order = 2
             left_cut = 0
             right_cut = ws['H92'].value - 0.4
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['top_left'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Bottom left first order bar
         if ws['J118'].value != 0 or ws['J120'].value != 0:
             label = ''
@@ -143,7 +155,8 @@ class Assistant:
             order = 1
             left_cut = 0
             right_cut = ws['H128'].value
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['bottom_left'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Bottom left second order bar
         if ws['F116'].value != 0 or ws['F118'].value != 0:
             label = ''
@@ -157,7 +170,8 @@ class Assistant:
             order = 2
             left_cut = 0
             right_cut = ws['H128'].value - 0.4
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['bottom_left'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Bottom central first order bar
         if ws['O116'].value != 0 or ws['O118'].value != 0:
             label = ''
@@ -171,7 +185,8 @@ class Assistant:
             order = 1
             left_cut = ws['J132'].value
             right_cut = ws['V132'].value
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['bottom_center'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Bottom central second order bar
         if ws['O108'].value != 0 or ws['O110'].value != 0:
             label = ''
@@ -185,7 +200,8 @@ class Assistant:
             order = 2
             left_cut = ws['J132'].value + 0.4
             right_cut = ws['V132'].value + 0.4
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['bottom_center'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Top right first order bar
         if ws['T101'].value != 0 or ws['T103'].value != 0:
             label = ''
@@ -199,7 +215,8 @@ class Assistant:
             order = 1
             left_cut = ws['X92'].value
             right_cut = 0
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['top_right'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Top right second order bar
         if ws['X103'].value != 0 or ws['X105'].value != 0:
             label = ''
@@ -213,7 +230,8 @@ class Assistant:
             order = 2
             left_cut = ws['X92'].value - 0.4
             right_cut = 0
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['top_right'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Bottom right first order bar
         if ws['T118'].value != 0 or ws['T120'].value != 0:
             label = ''
@@ -227,7 +245,8 @@ class Assistant:
             order = 1
             left_cut = ws['X128'].value
             right_cut = 0
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['bottom_right'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
         # Bottom right second order bar
         if ws['X116'].value != 0 or ws['X118'].value != 0:
             label = ''
@@ -241,20 +260,21 @@ class Assistant:
             order = 2
             left_cut = ws['X128'].value - 0.4
             right_cut = 0
-            bars_info.append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
+            bars_info['quantity']['bottom_right'] += 1
+            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
 
-        stirrups_info = str(ws['I400'].value) + ' (est. rect.) '
-        stirrups_info = stirrups_info + ('+ ' + str(ws['J400'].value) + ' (gancho) ' if ws['J400'].value != 0 else '')
-        stirrups_info = stirrups_info + '%%C' + ws['L400'].value + ': ' + ws['N416'].value
-        dif_stirrups = ws['Q416'].value == 'c/ext.'
+        stirrups_info = str(ws['I408'].value) + ' (est. rect.) '
+        stirrups_info = stirrups_info + ('+ ' + str(ws['J408'].value) + ' (gancho) ' if ws['J408'].value != 0 else '')
+        stirrups_info = stirrups_info + '%%C' + ws['L408'].value + ': ' + ws['N423'].value
+        dif_stirrups = ws['Q423'].value == 'c/ext.'
         if dif_stirrups:
             stirrups_info = stirrups_info + ' c/ext.'
         else:
             stirrups_info = stirrups_info + ' ----->    <----- '
-            stirrups_info = stirrups_info + str(ws['I409'].value) + ' (est. rect.) '
+            stirrups_info = stirrups_info + str(ws['I416'].value) + ' (est. rect.) '
             stirrups_info = stirrups_info + (
-                '+ ' + str(ws['J409'].value) + ' (gancho) ' if ws['J409'].value != 0 else '')
-            stirrups_info = stirrups_info + '%%C' + ws['L409'].value + ': ' + ws['V416'].value
+                '+ ' + str(ws['J416'].value) + ' (gancho) ' if ws['J416'].value != 0 else '')
+            stirrups_info = stirrups_info + '%%C' + ws['L416'].value + ': ' + ws['V423'].value
         return dict(zip(span_keys, [beam_name, left_support_width, free_length, right_support_width, width, height,
                                     bars_info, stirrups_info]))
 

@@ -373,14 +373,18 @@ class SAP:
     def run_analysis(self):
         return self.SapModel.Analyze.RunAnalysis()
 
-    def switch_units(self, Units: Union[str, int] = "tonf_m_C"):
+    def switch_displayed_units(self, Units: Union[str, int] = "tonf_m_C"):
         Units = convert_units(Units)
         return self.SapModel.SetPresentUnits(Units)
 
-    def define_material(self, Name: str, MatType: Union[str, int], E: float, U: float, A: float, Temp=0):
-        MatType = convert_material_type(MatType)
-        self.SapModel.PropMaterial.SetMaterial(Name, MatType)
-        return self.SapModel.PropMaterial.SetMPIsotropic(Name, E, U, A, Temp)
+    def define_concrete_material(self, Name: str, W: float, E: float, U: float, A: float, Fc: float, Temp=0):
+        MatType = convert_material_type("Concrete")
+        EtabsName = ""
+        EtabsName, ret = self.SapModel.PropMaterial.AddMaterial(EtabsName, MatType, "User", "User", "User")
+        self.SapModel.PropMaterial.ChangeName(EtabsName, Name)
+        self.SapModel.PropMaterial.SetWeightAndMass(Name, 1, W)
+        self.SapModel.PropMaterial.SetMPIsotropic(Name, E, U, A, Temp)
+        return self.SapModel.PropMaterial.SetOConcrete(Name, Fc, False, 1, 0, 2, 0.002, 0.003)
 
     def define_mass_source(self, IncludeElements: bool, IncludeAddedMass: bool, IncludeLoads: bool,
                            NumberLoads: int = 0, LoadPat: list[str] = None, SF: list[float] = None):
@@ -712,10 +716,10 @@ class SAP:
 
 
 if __name__ == "__main__":
-    etabs = SAP()
-    etabs.initialize(6)
+    etabs = SAP(True)
+    etabs.initialize("tonf_m_C")
     etabs.new_model(1)
-    etabs.switch_units("kgf_cm_C")
+    etabs.switch_displayed_units("kgf_cm_C")
     # # print(etabs.get_releases("1"))
     # # print(etabs.get_loads_distributed("1"))
     # # print(etabs.draw_frame([2, 2, 0], [3, 5, 0]))
@@ -738,34 +742,34 @@ if __name__ == "__main__":
     for index in range(len(Fc_list)):
         Fc = Fc_list[index]
         E = Econc_list[index]
-        etabs.define_material("CONC" + str(Fc), "Concrete", E, 0.15, 0.0000099)
-    for b_index in range(len(Bbeam_list)):
-        B = Bbeam_list[b_index]
-        for h_index in range(len(Hbeam_list)):
-            H = Hbeam_list[h_index]
-            for fc_index in range(len(Fcbeam_list)):
-                Fc = Fcbeam_list[fc_index]
-                etabs.define_rectangular_frame_property("V" + str(B) + "x" + str(H) + "-" + str(Fc) + "-AN",
-                                                        "CONC" + str(Fc), H, B, T=0.0001)
-    cols_created = []
-    for b_index in range(len(Bcol_list)):
-        B = Bcol_list[b_index]
-        if 15 <= B <= 40:
-            for h_index in range(len(Hcol_list)):
-                H = Hcol_list[h_index]
-                if B * 1000 + H in cols_created or H * 1000 + B in cols_created:
-                    print("col no creada")
-                    continue
-                if H / B > 4:
-                    continue
-                for fc_index in range(len(Fccol_list)):
-                    Fc = Fccol_list[fc_index]
-                    etabs.define_rectangular_frame_property("C" + str(B) + "x" + str(H) + "-" + str(Fc),
-                                                            "CONC" + str(Fc), H, B)
-                    etabs.define_rectangular_frame_property("C" + str(H) + "x" + str(B) + "-" + str(Fc),
-                                                            "CONC" + str(Fc), B, H)
-                cols_created.append(B * 1000 + H)
-                cols_created.append(H * 1000 + B)
+        etabs.define_concrete_material("CONC" + str(Fc), 2400, E, 0.20, 0.0000099, Fc)
+    # for b_index in range(len(Bbeam_list)):
+    #     B = Bbeam_list[b_index]
+    #     for h_index in range(len(Hbeam_list)):
+    #         H = Hbeam_list[h_index]
+    #         for fc_index in range(len(Fcbeam_list)):
+    #             Fc = Fcbeam_list[fc_index]
+    #             etabs.define_rectangular_frame_property("V" + str(B) + "x" + str(H) + "-" + str(Fc),
+    #                                                     "CONC" + str(Fc), H, B, T=0.0001)
+    # cols_created = []
+    # for b_index in range(len(Bcol_list)):
+    #     B = Bcol_list[b_index]
+    #     if 15 <= B <= 40:
+    #         for h_index in range(len(Hcol_list)):
+    #             H = Hcol_list[h_index]
+    #             if B * 1000 + H in cols_created or H * 1000 + B in cols_created:
+    #                 print("col no creada")
+    #                 continue
+    #             if H / B > 4:
+    #                 continue
+    #             for fc_index in range(len(Fccol_list)):
+    #                 Fc = Fccol_list[fc_index]
+    #                 etabs.define_rectangular_frame_property("C" + str(B) + "x" + str(H) + "-" + str(Fc),
+    #                                                         "CONC" + str(Fc), H, B)
+    #                 etabs.define_rectangular_frame_property("C" + str(H) + "x" + str(B) + "-" + str(Fc),
+    #                                                         "CONC" + str(Fc), B, H)
+    #             cols_created.append(B * 1000 + H)
+    #             cols_created.append(H * 1000 + B)
         # elif 45 <= B <= 50:
         #     for h_index in range(len(Hcol_list)):
         #         H = Hcol_list[h_index]
@@ -801,3 +805,5 @@ if __name__ == "__main__":
         #         cols_created.append(B * 1000 + H)
         #         cols_created.append(H * 1000 + B)
     # print(cols_created)
+    etabs.SapModel = None
+    etabs.Etabs = None
