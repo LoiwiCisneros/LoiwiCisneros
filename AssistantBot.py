@@ -263,18 +263,18 @@ class Assistant:
             bars_info['quantity']['bottom_right'] += 1
             bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut])))
 
-        stirrups_info = str(ws['I408'].value) + ' (est. rect.) '
-        stirrups_info = stirrups_info + ('+ ' + str(ws['J408'].value) + ' (gancho) ' if ws['J408'].value != 0 else '')
-        stirrups_info = stirrups_info + '%%C' + ws['L408'].value + ': ' + ws['N423'].value
-        dif_stirrups = ws['Q423'].value == 'c/ext.'
+        stirrups_info = str(ws['I416'].value) + ' (est. rect.) '
+        stirrups_info = stirrups_info + ('+ ' + str(ws['J416'].value) + ' (gancho) ' if ws['J416'].value != 0 else '')
+        stirrups_info = stirrups_info + '%%C' + ws['L416'].value + ': ' + ws['N431'].value
+        dif_stirrups = ws['Q431'].value == 'c/ext.'
         if dif_stirrups:
             stirrups_info = stirrups_info + ' c/ext.'
         else:
             stirrups_info = stirrups_info + ' ----->    <----- '
-            stirrups_info = stirrups_info + str(ws['I416'].value) + ' (est. rect.) '
+            stirrups_info = stirrups_info + str(ws['I424'].value) + ' (est. rect.) '
             stirrups_info = stirrups_info + (
-                '+ ' + str(ws['J416'].value) + ' (gancho) ' if ws['J416'].value != 0 else '')
-            stirrups_info = stirrups_info + '%%C' + ws['L416'].value + ': ' + ws['V423'].value
+                '+ ' + str(ws['J424'].value) + ' (gancho) ' if ws['J424'].value != 0 else '')
+            stirrups_info = stirrups_info + '%%C' + ws['L424'].value + ': ' + ws['V431'].value
         return dict(zip(span_keys, [beam_name, left_support_width, free_length, right_support_width, width, height,
                                     bars_info, stirrups_info]))
 
