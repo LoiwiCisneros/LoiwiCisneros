@@ -241,7 +241,7 @@ class CAD:
 
     def draw_beam(self, beam_info: dict):
         base_point = 0
-        left_edge = beam_info['spans_info'][0]['left_support_width']
+        left_edge = beam_info['spans_info'][0]['left_support_info'][0]
         left_height = beam_info['spans_info'][0]['height']
         if left_edge != 0:
             self.draw_line_by_points([base_point - left_edge / 2, -left_height - 0.5, 0],
@@ -250,30 +250,40 @@ class CAD:
             # w = span_info['width']  # width
             h = span_info['height']  # height
             fl = span_info['free_length']  # free length
-            left_shw = span_info['left_support_width'] * 0.5  # half of left_support_width
-            right_shw = span_info['right_support_width'] * 0.5  # half of right_support_width
+            left_shw = span_info['left_support_info'][0] * 0.5  # half of left_support_width
+            right_shw = span_info['right_support_info'][0] * 0.5  # half of right_support_width
             left_face = base_point + left_shw
             right_face = base_point + left_shw + fl
             self.draw_line_by_points([left_face, 0, 0], [right_face, 0, 0])
-            self.draw_line_by_points([left_face, 0, 0], [left_face, 0.5, 0]) if left_shw != 0 \
-                else self.draw_line_by_points([left_face, 0, 0], [left_face, -0.5 * h, 0])
-            self.draw_line_by_points([right_face, 0, 0], [right_face, 0.5, 0]) \
-                if right_shw != 0 else self.draw_line_by_points([right_face, 0, 0], [right_face, -0.5 * h, 0])
+            if not span_info['left_support_info'][1]:
+                self.draw_line_by_points([left_face, 0, 0], [left_face, 0.5, 0]) if left_shw != 0 \
+                    else self.draw_line_by_points([left_face, 0, 0], [left_face, -0.5 * h, 0])
+            else:
+                self.draw_line_by_points([left_face, 0, 0], [left_face, -0.5 * h, 0])
+            if not span_info['right_support_info'][1]:
+                self.draw_line_by_points([right_face, 0, 0], [right_face, 0.5, 0]) \
+                    if right_shw != 0 else self.draw_line_by_points([right_face, 0, 0], [right_face, -0.5 * h, 0])
+            else:
+                self.draw_line_by_points([right_face, 0, 0], [right_face, -0.5 * h, 0])
             self.select_last(3)
             self.mirror([left_face, -0.5 * h, 0], [right_face, -0.5 * h, 0])
             self.draw_linear_dimension(Point(left_face, -h - 0.5), Point(right_face, -h - 0.5), -0.25)
             if left_shw != 0:
-                self.draw_concrete_extension([base_point - left_shw, 0.5, 0], [base_point + left_shw, 0.5, 0])
-                self.select_last(5)
+                if not span_info['left_support_info'][1]:
+                    self.draw_concrete_extension([base_point - left_shw, 0.5, 0], [base_point + left_shw, 0.5, 0])
+                    self.select_last(5)
+                else:
+                    self.draw_line_by_points([base_point - left_shw, 0, 0], [base_point + left_shw,0, 0])
+                    self.select_last()
                 self.copy([0, 0.5, 0], [0, -h - 0.5, 0])
                 self.draw_linear_dimension(Point(base_point - left_shw, -h - 0.5),
                                            Point(base_point + left_shw, -h - 0.5), -0.25)
             for bar_data in span_info['bars_info']['info']:
                 self.draw_beam_longitudinal_bar(h / 2, left_face, right_face, bar_data)
             self.draw_text(span_info['span_name'], Point((left_face + right_face) / 2, 0.75), 0.10)
-            self.draw_text(span_info['stirrups_info'], Point((left_face + right_face) / 2, -h - 0.4))
+            self.draw_text(span_info['stirrups_info']['text'], Point((left_face + right_face) / 2, -h - 0.4))
             base_point += left_shw + fl + right_shw
-        right_edge = beam_info['spans_info'][-1]['right_support_width']
+        right_edge = beam_info['spans_info'][-1]['right_support_info'][0]
         right_height = beam_info['spans_info'][-1]['height']
         if right_edge != 0:
             self.draw_line_by_points([base_point + right_edge / 2, -right_height - 0.5, 0],
@@ -377,43 +387,54 @@ class CAD:
         side = bar_data['side']
         order = bar_data['order']
         left_cut = bar_data['left_cut']
+        lc = min(left_cut)
         right_cut = bar_data['right_cut']
+        rc = max(right_cut)
+        tie_info = bar_data['tie_info']
         edge_offset = 0.05 + 0.05 * order
         if case == 0:
-            self.draw_line_by_points(Point(left_face, -beam_middle + (beam_middle - edge_offset) * side),
-                                     Point(right_face, -beam_middle + (beam_middle - edge_offset) * side),
+            self.draw_line_by_points(Point(left_face + lc, -beam_middle + (beam_middle - edge_offset) * side),
+                                     Point(right_face + rc, -beam_middle + (beam_middle - edge_offset) * side),
                                      'LCM-ACERO')
+            # if any(tie_info[2]):
+            #     db1 = tie_info[0][0].split('C')[1].split('/')[0]
+            #     # db = max(tie_info[0][0] * (0 if ),)
+            #     self.draw_tie_long_bar(Point(left_cut[0 if tie_info[2][0] else 1],
+            #                                  -beam_middle + (beam_middle - edge_offset) * side),
+            #                            db)
+            # if any(tie_info[4]):
+            #     self.draw_tie_long_bar()
             self.draw_text(label, Point((left_face + right_face) / 2,
                                         -beam_middle + (beam_middle + edge_offset) * side))
         elif case == 1:
-            self.draw_line_by_points(Point(left_face, -beam_middle + (beam_middle - edge_offset) * side),
-                                     Point(left_face + right_cut, -beam_middle + (beam_middle - edge_offset) * side),
+            self.draw_line_by_points(Point(left_face + lc, -beam_middle + (beam_middle - edge_offset) * side),
+                                     Point(left_face + rc, -beam_middle + (beam_middle - edge_offset) * side),
                                      'LCM-ACERO')
-            self.draw_text(label, Point(left_face + right_cut - 0.1,
+            self.draw_text(label, Point(left_face + rc - 0.1,
                                         -beam_middle + (beam_middle - edge_offset - 0.05) * side))
             self.draw_linear_dimension(Point(left_face, -beam_middle + beam_middle * side),
-                                       Point(left_face + right_cut, -beam_middle + beam_middle * side),
+                                       Point(left_face + rc, -beam_middle + beam_middle * side),
                                        text_offset=0.25 * side)
         elif case == 2:
-            self.draw_line_by_points(Point(left_face + left_cut, -beam_middle + (beam_middle - edge_offset) * side),
-                                     Point(right_face - right_cut, -beam_middle + (beam_middle - edge_offset) * side),
+            self.draw_line_by_points(Point(left_face + lc, -beam_middle + (beam_middle - edge_offset) * side),
+                                     Point(right_face + rc, -beam_middle + (beam_middle - edge_offset) * side),
                                      'LCM-ACERO')
-            self.draw_text(label, Point(left_face + left_cut + 0.1,
+            self.draw_text(label, Point(left_face + lc + 0.1,
                                         -beam_middle + (beam_middle - edge_offset - 0.05) * side))
             self.draw_linear_dimension(Point(left_face, -beam_middle + beam_middle * side),
-                                       Point(left_face + left_cut, -beam_middle + beam_middle * side),
+                                       Point(left_face + lc, -beam_middle + beam_middle * side),
                                        text_offset=0.25 * side)
             self.draw_linear_dimension(Point(right_face, -beam_middle + beam_middle * side),
-                                       Point(right_face - right_cut, -beam_middle + beam_middle * side),
+                                       Point(right_face + rc, -beam_middle + beam_middle * side),
                                        text_offset=0.25 * side)
         elif case == 3:
-            self.draw_line_by_points(Point(right_face - left_cut, -beam_middle + (beam_middle - edge_offset) * side),
-                                     Point(right_face, -beam_middle + (beam_middle - edge_offset) * side),
+            self.draw_line_by_points(Point(right_face + lc, -beam_middle + (beam_middle - edge_offset) * side),
+                                     Point(right_face + rc, -beam_middle + (beam_middle - edge_offset) * side),
                                      'LCM-ACERO')
-            self.draw_text(label, Point(right_face - left_cut + 0.1,
+            self.draw_text(label, Point(right_face + lc + 0.1,
                                         -beam_middle + (beam_middle - edge_offset - 0.05) * side))
             self.draw_linear_dimension(Point(right_face, -beam_middle + beam_middle * side),
-                                       Point(right_face - left_cut, -beam_middle + beam_middle * side),
+                                       Point(right_face + lc, -beam_middle + beam_middle * side),
                                        text_offset=0.25 * side)
         # if left_con == 0:
         #     tie_case = determine_tie_case(bar_case, bar_restrictions[0], side)
@@ -427,14 +448,15 @@ class CAD:
         #     self.draw_tie_long_bar([ip[0] + right_cut, -ip[1] + (ip[1] - edge_offset) * side, 0], ld, tie_case, side,
         #                            1)
 
-    def draw_tie_long_bar(self, P0: Point, ld: float, case=0, side=1, draw_to=-1, tie_long=0):
-        P1 = Point(P0.x + ld * draw_to, P0.y)
+    def draw_tie_long_bar(self, P0: Point, db: list, tie: list, side=1):
+        if db == "8mm":
+            db = 0.08
+        else:
+            db = int(db.split('/')[0]) * 2.54 / 8
+        P1 = Point(P0.x, P0.y - side * 16 * db)
         self.draw_line_by_points(P0, P1, 'A-ACERO')
-        if case == 1:
-            P2 = Point(P1.x, P1.y - tie_long * side)
-            self.draw_line_by_points(P1, P2, 'A-ACERO')
 
-    def select_last(self, num_objects, selection_offset=0):
+    def select_last(self, num_objects=1, selection_offset=0):
         selection = []
         for i in range(num_objects):
             obj = self.objects_list[-1 - selection_offset - i]
@@ -673,7 +695,7 @@ if __name__ == '__main__':
 
     # draftsman.select_all()
     # draftsman.move([0, 0, 0], [0, 5, 0])
-    assistant.download_excel_beams_info(star_index=3)
+    assistant.download_excel_beams_info()
     with open('Beams_info') as jsonFile:
         beams_info = json.load(jsonFile)
     for name, info in beams_info.items():

@@ -318,7 +318,7 @@ class SAP:
         self.response_spectrum_functions = []
         self.AttachToInstance = AttachToInstance
         self.SpecifyPath = SpecifyPath
-        self.ProgramPath = "C:\\Program Files\\Computers and Structures\\ETABS 19\\ETABS.exe"
+        self.ProgramPath = "C:\\Program Files\\Computers and Structures\\ETABS 20\\ETABS.exe"
         self.APIPath = "D:\\PROYECTOS\\PROGRAMACION\\CSIBotModels"
         if not os.path.exists(self.APIPath):
             try:
@@ -327,10 +327,10 @@ class SAP:
                 pass
         self.ModelPath = self.APIPath + os.sep + 'API_1-001.edb'
         self.helper = comtypes.client.CreateObject('ETABSv1.Helper')
-        self.helper = self.helper.QueryInterface(comtypes.gen.ETABSv1.cHelper)
+        # self.helper = self.helper.QueryInterface(comtypes.gen.ETABSv1.cHelper)
         if self.AttachToInstance:
             try:
-                self.Etabs = self.helper.GetObject("CSI.ETABS.API.ETABSObject")
+                self.Etabs = comtypes.client.GetActiveObject("CSI.ETABS.API.ETABSObject")
             except (OSError, comtypes.COMError):
                 print("No running instance of the program found or failed to attach.")
                 sys.exit(-1)
