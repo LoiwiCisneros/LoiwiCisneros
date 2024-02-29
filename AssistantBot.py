@@ -39,7 +39,7 @@ class Assistant:
         with open(self.fileName, 'w') as jsonFile:
             json.dump(dictionary, jsonFile)
 
-    def download_excel_beams_info(self, star_index: int = 4, last_index: int = None):
+    def download_excel_beams_info(self, star_index: int = 6, last_index: int = None):
         storey_beam_numbers = {}
         self.reset_values()
         for index in range(star_index, (len(self.wb.sheetnames) if last_index is None else last_index)):
