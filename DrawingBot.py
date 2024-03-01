@@ -673,81 +673,11 @@ def get_wall_axes(vertices_list):
 
 
 if __name__ == '__main__':
-    draftsman = CAD()
     assistant = Assistant()
-    # draftsman.selection_set.Clear()
-    # draftsman.selection_set.SelectOnScreen()
-    # for number in range(draftsman.selection_set.Count):
-    #     item = draftsman.selection_set.Item(number)
-    #     coord = item.Coordinates
-    #     # tri_coord = get_wall_axes(coord)
-    #     # print(tri_coord)
-    #     vertices = np.array(coord)
-    #     total_vertex = int(vertices.size / 2)
-    #     vertices = np.split(vertices, total_vertex)
-    #     print(triangulate_polygon(vertices))
-
-    # mid_points = []
-    # for triangle in tri_coord:
-    #     p0 = triangle[0]
-    #     p1 = triangle[1]
-    #     P0 = Point(p0[0], p0[1])
-    #     P1 = Point(p1[0], p1[1])
-    #     draftsman.draw_line(p0, p1)
-    #     pm = P0.interpolate2point(P1, 0.5)
-    #     mid_points.append(pm)
-    # n = len(mid_points)
-    # index_list = list(range(0, n))
-    # lines = []
-    # for i in range(2, len(index_list)):
-    #     is_axis = False
-    #     P0 = mid_points[index_list[i-2]]
-    #     P1 = mid_points[index_list[i-1]]
-    #     L0 = Line(P0, P1)
-    #     for j in range(2, len(index_list)):
-    #         P2 = mid_points[index_list[j]]
-    #         if P2.is_collinear(L0):
-    #             index_list.pop(j)
-    #             is_axis = True
-    #     if is_axis:
-    #         index_list.pop(0)
-    #         index_list.pop(1)
-    #         lines.append(L0)
-    # for line in lines:
-    #     draftsman.draw_line(line.P0, line.P1, 'A-ACERO')
-
-    # draftsman.select_all()
-    # draftsman.move([0, 0, 0], [0, 5, 0])
     assistant.download_excel_beams_info()
-    with open('beams_info.json') as jsonFile:
-        beams_info = json.load(jsonFile)
-    for name, info in beams_info.items():
-        draftsman.draw_beam(info)
-        draftsman.select_all()
-        draftsman.move([0, 0, 0], [0, 5, 0])
-    # beam_geo = [[0.25, 0.25, 0.25],
-    #             [0.6, 0.8, 0.5],
-    #             [5, 5, 6]]
-    # beam_rest = [0, 1, 1.5, 0.4]
-    # beam_re_info = [[[[0, 0, 1, 2, 5, 1, 0, 0, 0], [0, 0, 0, 2, 5, -1, 0, 0, 0]],
-    #                  [[0, 1, 1, 2, 5, 1, 0, 0, 0], [0, 0, 0, 2, 5, -1, 0, 0, 0]],
-    #                  [[0, 1, 1, 2, 5, 1, 0, 0, 0], [0, 0, 0, 2, 5, -1, 0, 0, 0]],
-    #                  [[0, 1, 0, 2, 5, 1, 0, 0, 0], [0, 0, 0, 2, 5, -1, 0, 0, 0]]],
-    #                 [[],
-    #                  [],
-    #                  [],
-    #                  []]]
+    draftsman = CAD()
+    b_point = [0.0, 0.0]
+    for name, info in assistant.jsonDict.items():
+        draftsman.draw_beam(info, base_point=b_point)
+        b_point[1] += 5
     draftsman.zoom_all()
-
-# ANNOTATE
-# AN1 = acad.model.AddDimAligned(PBase, PEnd, PAnnotateEnd)
-# AN1 = acad.model.AddDimAngular(PBase, PEnd, PAnnotateEnd)
-
-# CIRCLE, ARC & ELLIPSE
-# C1 = acad.model.AddCircle(PBase, Radius)
-# A1 = acad.model.AddArc(PBase, Radius, InitialAngle, FinalAngle)
-# E1 = acad.model.AddEllipse(PBase1, PExt, RadiusRatio)
-
-# MODIFY PARAMETERS
-# acad.doc.GetVariable("PDMODE")
-# acad.doc.SetVariable("PDMODE", 0)
