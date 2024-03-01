@@ -1,8 +1,5 @@
 # Ignorar ..ipynb_checkpoints folder
 .ipynb_checkpoints
 
-# Ignorar archivos json
-beams_info.json
-
 #Ignorar virtual environment
 venv
