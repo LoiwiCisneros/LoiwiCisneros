@@ -7,12 +7,13 @@ import numpy as np
 import time
 from AssistantBot import Assistant
 from operator import itemgetter
-from typing import Union, Tuple
+from typing import Union, TypeAlias
 from typing import Annotated
 from typing import Self
 from typing import Any
 import json
 
+Vector: TypeAlias = list[Union[int, float]]
 
 def aDouble(xyz):
     return win32com.client.VARIANT(pythoncom.VT_ARRAY | pythoncom.VT_R8, xyz)
@@ -23,7 +24,7 @@ def aDispatch(vObject):
 
 
 class Point:
-    def __init__(self, x: Union[int, float, np.ndarray, list, tuple], y: Union[int, float] = 0.0,
+    def __init__(self, x: Union[int, float, np.ndarray, list, tuple, Vector], y: Union[int, float] = 0.0,
                  z: Union[int, float] = 0.0):
         if isinstance(x, (np.ndarray, list, tuple)):
             if len(x) == 3:
@@ -239,60 +240,82 @@ class CAD:
             new_layer.LineWeight = line_weight
         self.layers[name] = new_layer
 
-    def draw_beam(self, beam_info: dict):
-        base_point = 0
-        left_edge = beam_info['spans_info'][0]['left_support_info'][0]
+    def draw_beam(self, beam_info: dict, base_point: Vector = None):
+        if not base_point:
+            base_point = [0.0, 0.0]
+        left_edge_width = beam_info['spans_info'][0]['left_support_info'][0]
+        left_edge_type = beam_info['spans_info'][0]['left_support_info'][1]
         left_height = beam_info['spans_info'][0]['height']
-        if left_edge != 0:
-            self.draw_line_by_points([base_point - left_edge / 2, -left_height - 0.5, 0],
-                                     [base_point - left_edge / 2, 0.5, 0])
+        if left_edge_type == "Col/Pl":
+            self.draw_line_by_points([base_point[0] - left_edge_width / 2, base_point[1] - left_height - 0.5],
+                                     [base_point[0] - left_edge_width / 2, base_point[1] + 0.5])
+        else:
+            self.draw_line_by_points([base_point[0] - left_edge_width / 2, base_point[1] - left_height],
+                                     [base_point[0] - left_edge_width / 2, base_point[1]])
         for span_info in beam_info['spans_info']:
             # w = span_info['width']  # width
             h = span_info['height']  # height
             fl = span_info['free_length']  # free length
             left_shw = span_info['left_support_info'][0] * 0.5  # half of left_support_width
             right_shw = span_info['right_support_info'][0] * 0.5  # half of right_support_width
-            left_face = base_point + left_shw
-            right_face = base_point + left_shw + fl
-            self.draw_line_by_points([left_face, 0, 0], [right_face, 0, 0])
-            if not span_info['left_support_info'][1]:
-                self.draw_line_by_points([left_face, 0, 0], [left_face, 0.5, 0]) if left_shw != 0 \
-                    else self.draw_line_by_points([left_face, 0, 0], [left_face, -0.5 * h, 0])
-            else:
-                self.draw_line_by_points([left_face, 0, 0], [left_face, -0.5 * h, 0])
-            if not span_info['right_support_info'][1]:
-                self.draw_line_by_points([right_face, 0, 0], [right_face, 0.5, 0]) \
-                    if right_shw != 0 else self.draw_line_by_points([right_face, 0, 0], [right_face, -0.5 * h, 0])
-            else:
-                self.draw_line_by_points([right_face, 0, 0], [right_face, -0.5 * h, 0])
+            left_face = base_point[0] + left_shw
+            right_face = base_point[0] + left_shw + fl
+            self.draw_line_by_points([left_face, base_point[1]], [right_face, base_point[1]])
+            left_edge_type = span_info['left_support_info'][1]
+            if left_edge_type == "Viga":
+                self.draw_line_by_points([left_face, base_point[1]],
+                                         [left_face, base_point[1] - 0.5 * h])
+            elif left_edge_type == "Col/Pl":
+                self.draw_line_by_points([left_face, base_point[1]],
+                                         [left_face, base_point[1] + 0.5])
+            right_edge_type = span_info['left_support_info'][1]
+            if right_edge_type == "Viga":
+                self.draw_line_by_points([right_face, base_point[1]],
+                                         [right_face, base_point[1] - 0.5 * h])
+            elif right_edge_type == "Col/Pl":
+                self.draw_line_by_points([right_face, base_point[1]],
+                                         [right_face, base_point[1] + 0.5])
             self.select_last(3)
-            self.mirror([left_face, -0.5 * h, 0], [right_face, -0.5 * h, 0])
-            self.draw_linear_dimension(Point(left_face, -h - 0.5), Point(right_face, -h - 0.5), -0.25)
+            self.mirror([left_face, base_point[1] - 0.5 * h], [right_face, base_point[1] - 0.5 * h])
+            self.draw_linear_dimension([left_face, base_point[1] - h - 0.5],
+                                       [right_face, base_point[1] - h - 0.5], -0.25)
             if left_shw != 0:
-                if not span_info['left_support_info'][1]:
-                    self.draw_concrete_extension([base_point - left_shw, 0.5, 0], [base_point + left_shw, 0.5, 0])
+                if left_edge_type == "Col/Pl":
+                    self.draw_concrete_extension([base_point[0] - left_shw,  base_point[1] + 0.5],
+                                                 [base_point[0] + left_shw,  base_point[1] + 0.5])
                     self.select_last(5)
+                    self.copy([0, 0.5], [0, -h - 0.5])
                 else:
-                    self.draw_line_by_points([base_point - left_shw, 0, 0], [base_point + left_shw,0, 0])
+                    self.draw_line_by_points([base_point[0] - left_shw, base_point[1]],
+                                             [base_point[0] + left_shw, base_point[1]])
                     self.select_last()
-                self.copy([0, 0.5, 0], [0, -h - 0.5, 0])
-                self.draw_linear_dimension(Point(base_point - left_shw, -h - 0.5),
-                                           Point(base_point + left_shw, -h - 0.5), -0.25)
+                    self.copy([0, 0], [0, -h])
+                self.draw_linear_dimension([base_point - left_shw, -h - 0.5],
+                                           [base_point + left_shw, -h - 0.5], -0.25)
             for bar_data in span_info['bars_info']['info']:
                 self.draw_beam_longitudinal_bar(h / 2, left_face, right_face, bar_data)
             self.draw_text(span_info['span_name'], Point((left_face + right_face) / 2, 0.75), 0.10)
             self.draw_text(span_info['stirrups_info']['text'], Point((left_face + right_face) / 2, -h - 0.4))
             base_point += left_shw + fl + right_shw
-        right_edge = beam_info['spans_info'][-1]['right_support_info'][0]
+        right_edge_width = beam_info['spans_info'][-1]['right_support_info'][0]
+        right_edge_type = beam_info['spans_info'][-1]['right_support_info'][1]
         right_height = beam_info['spans_info'][-1]['height']
-        if right_edge != 0:
-            self.draw_line_by_points([base_point + right_edge / 2, -right_height - 0.5, 0],
-                                     [base_point + right_edge / 2, 0.5, 0])
-            self.draw_concrete_extension([base_point - right_edge / 2, 0.5, 0], [base_point + right_edge / 2, 0.5, 0])
-            self.select_last(5)
-            self.copy([0, 0.5, 0], [0, -right_height - 0.5, 0])
-            self.draw_linear_dimension(Point(base_point - right_edge / 2, -right_height - 0.5),
-                                       Point(base_point + right_edge / 2, -right_height - 0.5), -0.25)
+        if right_edge_width != 0:
+            if right_edge_type == "Col/Pl":
+                self.draw_line_by_points([base_point[0] + right_edge_width / 2, base_point[1] - right_height - 0.5],
+                                         [base_point[0] + right_edge_width / 2, base_point[1] + 0.5])
+                self.draw_concrete_extension([base_point[0] - right_edge_width / 2, 0.5],
+                                             [base_point[0] + right_edge_width / 2, 0.5])
+                self.select_last(5)
+                self.copy([0, 0.5], [0, -right_height - 0.5])
+            else:
+                self.draw_line_by_points([base_point[0] + right_edge_width / 2, base_point[1] - right_height],
+                                         [base_point[0] + right_edge_width / 2, base_point[1]])
+                self.select_last()
+                self.copy([0, 0], [0, -right_height])
+            self.draw_linear_dimension([base_point[0] - right_edge_width / 2, base_point[1] - right_height - 0.5],
+                                       [base_point[0] + right_edge_width / 2, base_point[1] - right_height - 0.5],
+                                       -0.25)
 
     def draw_column(self):
         pass
@@ -696,7 +719,7 @@ if __name__ == '__main__':
     # draftsman.select_all()
     # draftsman.move([0, 0, 0], [0, 5, 0])
     assistant.download_excel_beams_info()
-    with open('Beams_info') as jsonFile:
+    with open('Beams_info.json') as jsonFile:
         beams_info = json.load(jsonFile)
     for name, info in beams_info.items():
         draftsman.draw_beam(info)
