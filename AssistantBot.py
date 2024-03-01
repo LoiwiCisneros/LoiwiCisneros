@@ -1,77 +1,55 @@
 import json
+import os.path
 import openpyxl
 import re
 from tkinter import filedialog
 
 
 class Assistant:
-    def __init__(self, jsonFileName='Beams_info', xlsxFilePath=None):
+    def __init__(self, jsonFileName='beams_info', xlsxFilePath=None) -> None:
         self.fileName = jsonFileName
         if xlsxFilePath is None:
             xlsxFilePath = filedialog.askopenfilename(filetypes=(("Excel files", "*xlsx"), ("Excel files", "*xlsm")))
-        self.wb = openpyxl.load_workbook(xlsxFilePath, read_only=True, data_only=True, keep_vba=False)
+        self.jsonFilePath = os.path.join(os.path.dirname(xlsxFilePath), jsonFileName + '.json')
+        self.jsonFile = None
+        self.jsonDict = dict()
+        self.workbook = openpyxl.load_workbook(xlsxFilePath, read_only=True, data_only=True, keep_vba=False)
 
-    def get_variable_value(self, variable):
-        with open(self.fileName) as jsonFile:
-            dictionary = json.load(jsonFile)
-            value = dictionary[variable]
-        return value
+    def read_json_file(self):
+        if not os.path.exists(self.jsonFilePath):
+            raise Exception(f"No se existe el archivo: {self.jsonFilePath}")
+        self.jsonFile = open(self.jsonFilePath, 'r')
+        self.jsonDict = json.load(self.jsonFile)
 
-    def set_variable_value(self, variable, value):
-        with open(self.fileName) as jsonFile:
-            dictionary = json.load(jsonFile)
-        with open(self.fileName, 'w') as jsonFile:
-            dictionary[variable] = value
-            json.dump(dictionary, jsonFile)
+    def create_json_file(self):
+        self.jsonFile = open(self.jsonFilePath, 'w')
+        json.dump(self.jsonDict, self.jsonFile)
 
-    def set_default_variable(self, key, value):
-        with open(self.fileName) as jsonFile:
-            dictionary = json.load(jsonFile)
-        dictionary.setdefault(str(key), value)
-        with open(self.fileName, 'w') as jsonFile:
-            json.dump(dictionary, jsonFile)
-
-    def reset_values(self):
-        default_values = {
-            "Beams_info": {}
-        }
-        dictionary = default_values.get(self.fileName)
-        with open(self.fileName, 'w') as jsonFile:
-            json.dump(dictionary, jsonFile)
+    # def get_variable_value(self, variable):
+    #     return self.jsonDict[variable]
+    #
+    # def set_variable_value(self, variable, value):
+    #     self.jsonDict[variable] = value
+    #
+    # def set_default_variable(self, key, value):
+    #     self.jsonDict.setdefault(key, value)
 
     def download_excel_beams_info(self, star_index: int = 6, last_index: int = None):
-        storey_beam_numbers = {}
-        self.reset_values()
-        for index in range(star_index, (len(self.wb.sheetnames) if last_index is None else last_index)):
+        for index in range(star_index, (len(self.workbook.sheetnames) if last_index is None else last_index)):
             span_info = self.download_excel_span_info(index)
-            beam_storey = re.findall('V(.+?)-', span_info['span_name'])[0]
-            try:
-                beam_number = re.findall("-(.+?)\(", span_info['span_name'])[0]
-            except BaseException:
-                beam_number = span_info['span_name'].split('-')[1]
-            beam_name = 'V' + beam_storey + '-' + beam_number
-            if beam_storey not in storey_beam_numbers:
-                storey_beam_numbers.setdefault(beam_storey, [])
-            if beam_number not in storey_beam_numbers[beam_storey]:
-                storey_beam_numbers[beam_storey].append(beam_number)
-            self.set_default_variable(beam_name, {
-                "beam_name": beam_name,
-                "spans_num": 0,
-                "spans_info": []
-            })
-            beam_dict = self.get_variable_value(beam_name)
-            spans_num = beam_dict['spans_num']
-            spans_info = beam_dict['spans_info']
-            spans_info.append(span_info)
-            beam_dict.update({
-                "beam_name": beam_name,
-                "spans_num": spans_num + 1,
-                "spans_info": spans_info
-            })
-            self.set_variable_value(beam_name, beam_dict)
+            beam_name = re.findall("(.+?)\(", span_info['span_name'])[0]
+            beam_dict = self.jsonDict.setdefault(beam_name,
+                                                 {
+                                                     "beam_name": beam_name,
+                                                     "spans_num": 0,
+                                                     "spans_info": []
+                                                 })
+
+            beam_dict['spans_num'] += 1
+            beam_dict['spans_info'].append(span_info)
 
     def download_excel_span_info(self, index):
-        ws = self.wb[self.wb.sheetnames[index]]
+        ws = self.workbook[self.workbook.sheetnames[index]]
         span_keys = ['span_name', 'left_support_info', 'right_support_info', 'free_length', 'width', 'height',
                      'bars_info', 'stirrups_info']
         span_name = ws.title
@@ -355,13 +333,13 @@ class Assistant:
         stirrups_info = {'differentiate': ws['I414'].value, 'diameters': {
             'l2r_diam': "%%C" + str(ws['L416'].value),
             'r2l_diam': "%%C" + str(ws['L424'].value)},
-            'quantity': {
-            'l2r_two_legged': ws['I416'].value,
-            'l2r_single_legged': ws['J416'].value,
-            'r2l_two_legged': ws['I424'].value,
-            'r2l_single_legged': ws['J424'].value},
-            'text': "",
-            'info': []}
+                         'quantity': {
+                             'l2r_two_legged': ws['I416'].value,
+                             'l2r_single_legged': ws['J416'].value,
+                             'r2l_two_legged': ws['I424'].value,
+                             'r2l_single_legged': ws['J424'].value},
+                         'text': "",
+                         'info': []}
 
         stirrups_text = str(ws['I416'].value) + ' (est. rect.) '
         stirrups_text = stirrups_text + ('+ ' + str(ws['J416'].value) + ' (gancho) ' if ws['J416'].value != 0 else '')

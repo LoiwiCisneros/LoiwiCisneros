@@ -183,7 +183,7 @@ class Line:
 
 
 class CAD:
-    def __init__(self, file_name='NewDrawing.dwg'):
+    def __init__(self):
         self.acad = win32com.client.Dispatch("AutoCAD.Application")
         self.acad.Visible = True
         self.acad.Documents.Add()
@@ -650,8 +650,8 @@ def get_wall_axes(vertices_list):
 
 
 if __name__ == '__main__':
-    draftsman = CAD('Drawing1.dwg')
-    assistant = Assistant('Beams_info')
+    draftsman = CAD()
+    assistant = Assistant()
     # draftsman.selection_set.Clear()
     # draftsman.selection_set.SelectOnScreen()
     # for number in range(draftsman.selection_set.Count):
