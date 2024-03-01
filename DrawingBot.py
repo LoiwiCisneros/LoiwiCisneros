@@ -719,7 +719,7 @@ if __name__ == '__main__':
     # draftsman.select_all()
     # draftsman.move([0, 0, 0], [0, 5, 0])
     assistant.download_excel_beams_info()
-    with open('Beams_info.json') as jsonFile:
+    with open('beams_info.json') as jsonFile:
         beams_info = json.load(jsonFile)
     for name, info in beams_info.items():
         draftsman.draw_beam(info)
