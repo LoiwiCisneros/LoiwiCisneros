@@ -3,3 +3,6 @@
 
 #Ignorar virtual environment
 venv
+
+#Ignorar carpeta .idea
+.idea

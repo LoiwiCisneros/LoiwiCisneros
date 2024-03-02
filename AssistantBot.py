@@ -66,7 +66,8 @@ class Assistant:
             'bottom_center': 0,
             'bottom_right': 0},
             'info': []}
-        bars_keys = ['label', 'case', 'side', 'order', 'left_cut', 'right_cut', 'tie_info']
+        bars_keys = ['label', 'case', 'side', 'order', 'left_cut', 'right_cut', 'tie_info', 'annotation_offset']
+        label, case, side, order, left_cut, right_cut, tie_info, annotation_offset = (None,) * 8
         # Top long bar
         if ws['O90'].value != 0 or ws['O91'].value != 0:
             label = ""
@@ -90,7 +91,6 @@ class Assistant:
             tie_info[3] = True if ws['AA97'].value else False
             tie_info[4][0] = True if ws['R90'].value else False
             tie_info[4][1] = True if ws['R91'].value else False
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Bottom long bar
         if ws['O135'].value != 0 or ws['O136'].value != 0:
             label = ""
@@ -114,7 +114,7 @@ class Assistant:
             tie_info[3] = True if ws['AA125'].value else False
             tie_info[4][0] = True if ws['R135'].value else False
             tie_info[4][1] = True if ws['R136'].value else False
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
+            annotation_offset = None
         # Top left first order bar
         if ws['J101'].value != 0 or ws['J103'].value != 0:
             label = ""
@@ -136,7 +136,6 @@ class Assistant:
             tie_info[2][0] = True if ws['I101'].value else False
             tie_info[2][1] = True if ws['I103'].value else False
             bars_info['quantity']['top_left'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Top left second order bar
         if ws['F103'].value != 0 or ws['F105'].value != 0:
             label = ""
@@ -158,7 +157,6 @@ class Assistant:
             tie_info[2][0] = True if ws['E103'].value else False
             tie_info[2][1] = True if ws['E105'].value else False
             bars_info['quantity']['top_left'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Bottom left first order bar
         if ws['J118'].value != 0 or ws['J120'].value != 0:
             label = ""
@@ -180,7 +178,6 @@ class Assistant:
             tie_info[2][0] = True if ws['I118'].value else False
             tie_info[2][1] = True if ws['I120'].value else False
             bars_info['quantity']['bottom_left'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Bottom left second order bar
         if ws['F116'].value != 0 or ws['F118'].value != 0:
             label = ""
@@ -202,7 +199,6 @@ class Assistant:
             tie_info[2][0] = True if ws['E116'].value else False
             tie_info[2][1] = True if ws['E118'].value else False
             bars_info['quantity']['bottom_left'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Bottom central first order bar
         if ws['O116'].value != 0 or ws['O118'].value != 0:
             label = ""
@@ -221,7 +217,6 @@ class Assistant:
                          ws['F251'].value - ws['F257'].value]
             tie_info = [[label_1, label_2], False, False]
             bars_info['quantity']['bottom_center'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Bottom central second order bar
         if ws['O108'].value != 0 or ws['O110'].value != 0:
             label = ""
@@ -240,7 +235,6 @@ class Assistant:
                          ws['F254'].value - ws['F257'].value]
             tie_info = [[label_1, label_2], False, False]
             bars_info['quantity']['bottom_center'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Top right first order bar
         if ws['T101'].value != 0 or ws['T103'].value != 0:
             label = ""
@@ -262,7 +256,6 @@ class Assistant:
             tie_info[2][0] = True if ws['W101'].value else False
             tie_info[2][1] = True if ws['W103'].value else False
             bars_info['quantity']['top_right'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Top right second order bar
         if ws['X103'].value != 0 or ws['X105'].value != 0:
             label = ""
@@ -284,7 +277,6 @@ class Assistant:
             tie_info[2][0] = True if ws['AA103'].value else False
             tie_info[2][1] = True if ws['AA105'].value else False
             bars_info['quantity']['top_right'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Bottom right first order bar
         if ws['T118'].value != 0 or ws['T120'].value != 0:
             label = ""
@@ -306,7 +298,6 @@ class Assistant:
             tie_info[2][0] = True if ws['W118'].value else False
             tie_info[2][1] = True if ws['W120'].value else False
             bars_info['quantity']['bottom_right'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
         # Bottom right second order bar
         if ws['X116'].value != 0 or ws['X118'].value != 0:
             label = ""
@@ -328,8 +319,8 @@ class Assistant:
             tie_info[2][0] = True if ws['AA116'].value else False
             tie_info[2][1] = True if ws['AA118'].value else False
             bars_info['quantity']['bottom_right'] += 1
-            bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut, tie_info])))
-
+        bars_info['info'].append(dict(zip(bars_keys, [label, case, side, order, left_cut, right_cut,
+                                                      tie_info, annotation_offset])))
         stirrups_info = {'differentiate': ws['I414'].value, 'diameters': {
             'l2r_diam': "%%C" + str(ws['L416'].value),
             'r2l_diam': "%%C" + str(ws['L424'].value)},
