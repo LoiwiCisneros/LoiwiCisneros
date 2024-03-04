@@ -293,7 +293,53 @@ class CAD:
                 self.draw_linear_dimension([base_point[0] - left_shw, base_point[1] - h - 0.5],
                                            [base_point[0] + left_shw, base_point[1] - h - 0.5], -0.25)
             for bar_data in span_info['bars_info']['info']:
-                self.draw_beam_longitudinal_bar(base_point[1] - h / 2, h, left_face, right_face, bar_data)
+                tie_info = bar_data['tie_info']
+                order = bar_data['order']
+                side = bar_data['side']
+                if bar_data['case'] == 0:
+                    if tie_info[1]:
+                        bar_data['left_cut'] = bar_data['left_cut'] / 2
+                    if tie_info[3]:
+                        bar_data['right_cut'] = bar_data['right_cut'] / 2
+                    bar_data['left_annotation'] = None
+                    bar_data['right_annotation'] = None
+                    bar_data['text_position'] = 0
+                elif bar_data['case'] == 1:
+                    side = 'top_left' if side == 1 else 'bottom_left'
+                    if tie_info[1]:
+                        bar_data['left_cut'] = bar_data['left_cut'] / 2
+                    if order == 1 and span_info['bars_info']['quantity'][side] == 2:
+                        bar_data['left_annotation'] = span_info['bars_info']['annotated_dimensions'][side][1]
+                        bar_data['right_annotation'] = bar_data['right_cut']
+                    else:
+                        bar_data['left_annotation'] = 0.0
+                        bar_data['right_annotation'] = bar_data['right_cut']
+                    bar_data['text_position'] = 1
+                elif bar_data['case'] == 2:
+                    side = 'bottom_center'
+                    if order == 2 and span_info['bars_info']['quantity'][side] == 2:
+                        bar_data['left_annotation'] = span_info['bars_info']['annotated_dimensions'][side][0][0]
+                        bar_data['right_annotation'] = span_info['bars_info']['annotated_dimensions'][side][0][1]
+                        bar_data['text_position'] = 0
+                    else:
+                        bar_data['left_annotation'] = 0.0
+                        bar_data['right_annotation'] = 0.0
+                        if span_info['bars_info']['quantity'][side] == 2:
+                            bar_data['text_position'] = -1
+                        else:
+                            bar_data['text_position'] = 0
+                elif bar_data['case'] == 3:
+                    side = 'top_right' if side == 1 else 'bottom_right'
+                    if tie_info[1]:
+                        bar_data['right_cut'] = bar_data['right_cut'] / 2
+                    if order == 1 and span_info['bars_info']['quantity'][side] == 2:
+                        bar_data['left_annotation'] = bar_data['left_cut']
+                        bar_data['right_annotation'] = span_info['bars_info']['annotated_dimensions'][side][1]
+                    else:
+                        bar_data['left_annotation'] = bar_data['left_cut']
+                        bar_data['right_annotation'] = 0.0
+                    bar_data['text_position'] = -1
+                self.draw_beam_longitudinal_bar(base_point[1] - h / 2, h, left_face, right_face, bar_data, )
             self.draw_text(span_info['span_name'],
                            Point((left_face + right_face) / 2, base_point[1] + 0.75), 0.10)
             self.draw_text(span_info['stirrups_info']['text'],
@@ -324,25 +370,6 @@ class CAD:
                 self.draw_linear_dimension([base_point[0] - right_edge_width / 2, base_point[1] - right_height - 0.5],
                                            [base_point[0] + right_edge_width / 2, base_point[1] - right_height - 0.5],
                                            -0.25)
-        # if right_edge_width != 0:
-        #     if right_edge_type == "Col/Pl":
-        #         self.draw_line_by_points([base_point[0] + right_edge_width / 2, base_point[1] - right_height - 0.5],
-        #                                  [base_point[0] + right_edge_width / 2, base_point[1] + 0.5])
-        #         self.draw_concrete_extension([base_point[0] - right_edge_width / 2, base_point[1] + 0.5],
-        #                                      [base_point[0] + right_edge_width / 2, base_point[1] + 0.5])
-        #         self.select_last(5)
-        #         self.copy([0, 0.5], [0, -right_height - 0.5])
-        #     else:
-        #         self.draw_line_by_points([base_point[0] + right_edge_width / 2, base_point[1] - right_height],
-        #                                  [base_point[0] + right_edge_width / 2, base_point[1]])
-        #         self.draw_line_by_points([base_point[0] - right_edge_width / 2, base_point[1]],
-        #                                  [base_point[0] + right_edge_width / 2, base_point[1]])
-        #         self.select_last()
-        #         self.copy([0, 0], [0, -right_height])
-        #     self.draw_linear_dimension([base_point[0] - right_edge_width / 2, base_point[1] - right_height - 0.5],
-        #                                [base_point[0] + right_edge_width / 2, base_point[1] - right_height - 0.5],
-        #                                -0.25)
-
     def draw_column(self):
         pass
 
@@ -437,79 +464,69 @@ class CAD:
         case = bar_data['case']
         side = bar_data['side']
         order = bar_data['order']
-        left_cut = bar_data['left_cut']
-        lc = min(left_cut)
-        right_cut = bar_data['right_cut']
-        rc = max(right_cut)
+        lc = bar_data['left_cut']
+        rc = bar_data['right_cut']
+        left_annotation = bar_data['left_annotation']
+        right_annotation = bar_data['right_annotation']
+        text_position = bar_data['text_position']
         tie_info = bar_data['tie_info']
-        annotation_offset = bar_data['annotation_offset']
-        if not annotation_offset:
-            annotation_offset = 0.0
         edge_offset = 0.05 + 0.05 * order
         bhh = beam_height / 2
         if case == 0:
-            if tie_info[1]:
-                lc = lc / 2
-            if tie_info[3]:
-                rc = rc / 2
             self.draw_line_by_points(Point(left_face + lc, beam_middle + (bhh - edge_offset) * side),
                                      Point(right_face + rc, beam_middle + (bhh - edge_offset) * side),
                                      'LCM-ACERO')
-            # if any(tie_info[2]):
-            #     db1 = tie_info[0][0].split('C')[1].split('/')[0]
-            #     # db = max(tie_info[0][0] * (0 if ),)
-            #     self.draw_tie_long_bar(Point(left_cut[0 if tie_info[2][0] else 1],
-            #                                  -beam_middle + (beam_middle - edge_offset) * side),
-            #                            db)
-            # if any(tie_info[4]):
-            #     self.draw_tie_long_bar()
-            self.draw_text(label, Point((left_face + right_face) / 2,
-                                        beam_middle + (bhh + edge_offset) * side))
+            self.draw_text(label, Point((left_face + right_face) / 2, beam_middle + (bhh + edge_offset) * side))
+            if any(tie_info[2]):
+                self.draw_line_by_points(Point(left_face + lc, beam_middle + (bhh - edge_offset) * side),
+                                         Point(left_face + lc, beam_middle + (bhh - edge_offset) * side - 0.25 * side),
+                                         'LCM-ACERO')
+            if any(tie_info[4]):
+                self.draw_line_by_points(Point(right_face + rc, beam_middle + (bhh - edge_offset) * side),
+                                         Point(right_face + rc, beam_middle + (bhh - edge_offset) * side - 0.25 * side),
+                                         'LCM-ACERO')
         elif case == 1:
-            if tie_info[1]:
-                lc = lc / 2
             self.draw_line_by_points(Point(left_face + lc, beam_middle + (bhh - edge_offset) * side),
                                      Point(left_face + rc, beam_middle + (bhh - edge_offset) * side),
                                      'LCM-ACERO')
-            self.draw_text(label, Point(left_face + rc - 0.1,
-                                        beam_middle + (bhh - edge_offset - 0.05) * side))
-            self.draw_linear_dimension(Point(left_face + annotation_offset, beam_middle + bhh * side),
-                                       Point(left_face + rc, beam_middle + bhh * side),
+            self.draw_text(label, Point(left_face + rc, beam_middle + (bhh - edge_offset - 0.05) * side),
+                           alignment=11)
+            self.draw_linear_dimension(Point(left_face + left_annotation, beam_middle + bhh * side),
+                                       Point(left_face + right_annotation, beam_middle + bhh * side),
                                        text_offset=0.25 * side)
+            if any(tie_info[2]):
+                self.draw_line_by_points(Point(left_face + lc, beam_middle + (bhh - edge_offset) * side),
+                                         Point(left_face + lc, beam_middle + (bhh - edge_offset) * side - 0.25 * side),
+                                         'LCM-ACERO')
         elif case == 2:
             self.draw_line_by_points(Point(left_face + lc, beam_middle + (bhh - edge_offset) * side),
                                      Point(right_face + rc, beam_middle + (bhh - edge_offset) * side),
                                      'LCM-ACERO')
-            self.draw_text(label, Point(left_face + lc + 0.1,
-                                        beam_middle + (bhh - edge_offset - 0.05) * side))
-            self.draw_linear_dimension(Point(left_face, beam_middle + bhh * side),
+            if text_position == -1:
+                self.draw_text(label, Point(left_face + lc, beam_middle + (bhh - edge_offset - 0.05) * side),
+                               alignment=9)
+            else:
+                self.draw_text(label, Point((left_face + right_face) / 2,
+                                            beam_middle + (bhh - edge_offset - 0.05) * side))
+            self.draw_linear_dimension(Point(left_face + left_annotation, beam_middle + bhh * side),
                                        Point(left_face + lc, beam_middle + bhh * side),
                                        text_offset=0.25 * side)
-            self.draw_linear_dimension(Point(right_face, beam_middle + bhh * side),
+            self.draw_linear_dimension(Point(right_face + right_annotation, beam_middle + bhh * side),
                                        Point(right_face + rc, beam_middle + bhh * side),
                                        text_offset=0.25 * side)
         elif case == 3:
-            if tie_info[3]:
-                rc = rc / 2
             self.draw_line_by_points(Point(right_face + lc, beam_middle + (bhh - edge_offset) * side),
                                      Point(right_face + rc, beam_middle + (bhh - edge_offset) * side),
                                      'LCM-ACERO')
-            self.draw_text(label, Point(right_face + lc + 0.1,
-                                        beam_middle + (bhh - edge_offset - 0.05) * side))
-            self.draw_linear_dimension(Point(right_face - annotation_offset, beam_middle + bhh * side),
-                                       Point(right_face + lc, beam_middle + bhh * side),
+            self.draw_text(label, Point(right_face + lc, beam_middle + (bhh - edge_offset - 0.05) * side),
+                           alignment=9)
+            self.draw_linear_dimension(Point(right_face + left_annotation, beam_middle + bhh * side),
+                                       Point(right_face + right_annotation, beam_middle + bhh * side),
                                        text_offset=0.25 * side)
-        # if left_con == 0:
-        #     tie_case = determine_tie_case(bar_case, bar_restrictions[0], side)
-        #     ld = get_dev_length(D, tie_case)
-        #     ld = min(ld, bar_restrictions[0]-0.06-0.04*order)
-        #     self.draw_tie_long_bar([ip[0]+left_cut, -ip[1]+(ip[1]-edge_offset)*side, 0], ld, tie_case, side, -1)
-        # if right_con == 0:
-        #     tie_case = determine_tie_case(bar_case, bar_restrictions[1], side)
-        #     ld = get_dev_length(D, tie_case)
-        #     ld = min(ld, bar_restrictions[1]-0.06-0.04*order)
-        #     self.draw_tie_long_bar([ip[0] + right_cut, -ip[1] + (ip[1] - edge_offset) * side, 0], ld, tie_case, side,
-        #                            1)
+            if any(tie_info[2]):
+                self.draw_line_by_points(Point(right_face + rc, beam_middle + (bhh - edge_offset) * side),
+                                         Point(right_face + rc, beam_middle + (bhh - edge_offset) * side - 0.25 * side),
+                                         'LCM-ACERO')
 
     def draw_tie_long_bar(self, P0: Point, db: list, tie: list, side=1):
         if db == "8mm":
@@ -714,8 +731,10 @@ def get_wall_axes(vertices_list):
 
 if __name__ == '__main__':
     assistant = Assistant()
-    # assistant.download_excel_beams_info()
-    # assistant.create_json_file()
+    list_indexes = assistant.get_sheets2draw()
+    list_indexes = np.array(list_indexes) + 6
+    assistant.download_excel_beams_info(list_indexes)
+    assistant.create_json_file()
     assistant.read_json_file()
     draftsman = CAD()
     b_point = [0, 0]
