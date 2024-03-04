@@ -4,5 +4,9 @@
 #Ignorar virtual environment
 venv
 
-#Ignorar carpeta .idea
+#Carpetas
 .idea
+dist
+
+#Archivos locales
+BeamDrawer.py

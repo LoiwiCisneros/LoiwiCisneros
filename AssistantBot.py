@@ -3,7 +3,6 @@ import os.path
 import re
 import tkinter as tk
 from tkinter import ttk, filedialog
-
 import numpy as np
 import pandas as pd
 from typing import Union, TypeAlias, Any
@@ -48,6 +47,7 @@ class App(tk.Tk):
         self.geometry("250x300")
         self.minsize(250, 200)
         self.show_list()
+        self.lift()
         self.mainloop()
 
     def show_list(self):
@@ -120,7 +120,7 @@ class AskFileApp(tk.Tk):
         self.was_cancelled = True
 
     def ask_file(self) -> None:
-        self.path = tk.filedialog.askopenfilename(filetypes=self.filetypes)
+        self.path = filedialog.askopenfilename(filetypes=self.filetypes)
         if self.path:
             self.was_cancelled = False
             self.destroy()
